@@ -186,51 +186,46 @@ with aba_avm:
     st.subheader("Configuração da Base e Modelagem")
     arquivo_planilha = st.file_uploader("Arraste aqui a planilha consolidada de imóveis do banco (.xlsx ou .csv)", type=["xlsx", "csv"])
 
-    if arquivo_planilha is not None:
+   if arquivo_planilha is not None:
         try:
+            # Leitura
             if arquivo_planilha.name.endswith('.csv'):
                 df_global = pd.read_csv(arquivo_planilha)
             else:
                 df_global = pd.read_excel(arquivo_planilha)
+            
+            # 1. Normalização de nomes (deixa tudo minusculo, sem acento e sem espaço)
+            df_global.columns = [c.lower().strip().replace(" ", "_").replace("á", "a").replace("í", "i").replace("é", "e").replace("ã", "a").replace("ç", "c") for c in df_global.columns]
 
-            # --- MAPEAMENTO INTELIGENTE (Flexível) ---
-            # Dicionário de sinônimos: o que o cliente pode escrever vs o que o código espera
-            dicionario_colunas = {
-                'valor_total_declarado': ['valor total', 'valor', 'preco', 'valor_total'],
-                'area_privativa': ['area', 'area privativa', 'area total', 'area construida'],
-                'indice_fiscal': ['indice fiscal', 'indice', 'iptu', 'codigo fiscal'],
-                'area_terreno': ['area terreno', 'terreno', 'area do terreno'],
-                'vagas_garagem': ['vagas', 'vaga', 'garagem', 'vagas de garagem'],
-                'andar': ['andar', 'pavimento', 'num andar'],
-                'pe_direito': ['pe direito', 'altura', 'pe_direito'],
-                'tipologia': ['tipologia', 'tipo', 'categoria', 'tipo de imovel']
+            # 2. Mapeamento dos nomes (o que vem no arquivo -> o que o sistema quer)
+            mapeamento = {
+                'valor_total': 'valor_total_declarado',
+                'valor': 'valor_total_declarado',
+                'area': 'area_privativa',
+                'area_privativa': 'area_privativa',
+                'indice_fiscal': 'indice_fiscal',
+                'area_do_terreno': 'area_terreno',
+                'terreno': 'area_terreno',
+                'vagas': 'vagas_garagem',
+                'andar': 'andar',
+                'pe_direito': 'pe_direito',
+                'tipologia': 'tipologia'
             }
-
-            # Função para encontrar a coluna correta baseada em similaridade
-            def encontrar_coluna(nome_esperado, colunas_df):
-                for col in colunas_df:
-                    col_limpa = col.lower().strip()
-                    if col_limpa in dicionario_colunas[nome_esperado]:
-                        return col
-                return None
-
-            # Renomeia dinamicamente
-            mapeamento_final = {}
-            for esperado in dicionario_colunas.keys():
-                coluna_encontrada = encontrar_coluna(esperado, df_global.columns)
-                if coluna_encontrada:
-                    mapeamento_final[coluna_encontrada] = esperado
+            df_global = df_global.rename(columns=mapeamento)
             
-            df_global = df_global.rename(columns=mapeamento_final)
+            # 3. VERIFICAÇÃO E CRIAÇÃO (Se a coluna não existe, cria com valor 0)
+            features_obrigatorias = ['valor_total_declarado', 'area_privativa', 'indice_fiscal', 
+                                     'area_terreno', 'vagas_garagem', 'andar', 'pe_direito', 'tipologia']
             
-            # Garante que a tipologia seja tratada corretamente
-            if 'tipologia' in df_global.columns:
-                df_global['tipologia'] = df_global['tipologia'].astype(str).str.upper().str.strip()
+            for col in features_obrigatorias:
+                if col not in df_global.columns:
+                    df_global[col] = 0
+                    st.warning(f"A coluna '{col}' não foi encontrada no arquivo. Preenchendo com valor 0.")
 
-            st.success("✅ Arquivo processado com sucesso (Colunas mapeadas automaticamente).")
+            st.success("✅ Base processada com segurança.")
             
         except Exception as e:
-            st.error(f"Erro ao processar arquivo: {e}")
+            st.error(f"Erro crítico no processamento: {e}")
         
 
 # Adicione isso logo após ler o arquivo

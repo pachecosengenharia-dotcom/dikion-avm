@@ -10,7 +10,7 @@ from reportlab.lib import colors
 import io
 import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="Plataforma AVM SaaS - Multi-Tipologia", page_icon="🏢", layout="wide")
+st.set_page_config(page_title="Plataforma AVM SaaS - Engenharia", page_icon="🏢", layout="wide")
 
 # =====================================================================
 # BASE DE DADOS COMPACTA PARA CÁLCULOS RIGOROSOS DE IA
@@ -55,27 +55,39 @@ def gerar_laudo_pdf_ia(tenant, tipologia, area, valores, model_stats, status_jur
     story = []
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle('T1', parent=styles['Heading1'], fontSize=16, textColor=colors.HexColor("#1A365D"), spaceAfter=15)
+    subtitle_style = ParagraphStyle('T2', parent=styles['Heading2'], fontSize=12, textColor=colors.HexColor("#2B6CB0"), spaceAfter=8)
     text_style = ParagraphStyle('T3', parent=styles['Normal'], fontSize=9, leading=13, spaceAfter=6)
     
-    story.append(Paragraph(f"LAUDO TECNICO CORE AVM - IA ({tipologia})", title_style))
-    story.append(Paragraph(f"<b>Instituicao Solicitante:</b> {tenant}", text_style))
+    story.append(Paragraph(f"LAUDO TECNICO DE ENGENHARIA DE AVALIACOES POR IA", title_style))
+    story.append(Paragraph(f"<b>Instituicao Solicitante:</b> {tenant} | <b>Normativa:</b> ABNT NBR 14653-2", text_style))
     story.append(Spacer(1, 10))
     
-    t1 = Table([["Tipologia do Bem", tipologia, "Dimensao Principal", f"{area} m²"]], colWidths=[130, 110, 130, 110])
+    story.append(Paragraph("1. Escopo de Avaliacao Imobiliaria", subtitle_style))
+    t1 = Table([["Tipologia do Bem", tipologia, "Dimensao Principal", f"{area} m²"]], colWidths=[130, 110, 130, 130])
     t1.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#F7FAFC")), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#E2E8F0")), ('PADDING', (0,0), (-1,-1), 5)]))
     story.append(t1)
     
+    story.append(Paragraph("2. Resultados do Motor de Machine Learning", subtitle_style))
     t2 = Table([
         ["Metrica de Cobertura do Risco", "Valor Comercial Admissivel"],
-        ["Margem Minima de Seguranca", f"R$ {valores['v_min']:,.2f}"],
-        ["Valor de Face Estimado", f"R$ {valores['v_medio']:,.2f}"],
+        ["Margem Minima de Seguranca (Garantia LTV)", f"R$ {valores['v_min']:,.2f}"],
+        ["Valor de Face Estimado (Media)", f"R$ {valores['v_medio']:,.2f}"],
         ["Limite de Mercado Maximo", f"R$ {valores['v_max']:,.2f}"]
-    ], colWidths=[240, 240])
+    ], colWidths=[250, 250])
     t2.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor("#2B6CB0")), ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E0")), ('PADDING', (0,0), (-1,-1), 5)]))
     story.append(t2)
-    
     story.append(Spacer(1, 5))
+    story.append(Paragraph(f"<b>Metricas de Redes de Decisao:</b> Precisao de Ajuste R² = {model_stats['r2']} | Amostras Saneadas = {model_stats['saneadas']}.", text_style))
+    
+    story.append(Paragraph("3. Diagnostico e Comportamento Espacial do Mercado", subtitle_style))
     story.append(Image(grafico_buf, width=320, height=160))
+    story.append(Spacer(1, 10))
+    
+    story.append(Paragraph("4. Status da Esteira de Risco Juridico", subtitle_style))
+    t3 = Table([["Status Documental", "APROVADO PARA GARANTIA" if status_juridico else "REPROVADO"], ["Grau de Risco Legal", score_juridico]], colWidths=[250, 250])
+    t3.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E0")), ('PADDING', (0,0), (-1,-1), 5), ('TEXTCOLOR', (1,0), (1,0), colors.HexColor("#38A169") if status_juridico else colors.HexColor("#E53E3E"))]))
+    story.append(t3)
+    
     doc.build(story)
     buffer.seek(0)
     return buffer.getvalue()
@@ -158,26 +170,4 @@ with aba_avm:
         
         model_ia = RandomForestRegressor(n_estimators=100, random_state=42)
         model_ia.fit(X, Y)
-        
-        # --- PIPELINE MATEMÁTICO ANINHADO CONTRA EXECUÇÃO PRECOCE ---
-        v_alvo = [area_alvo, indice_alvo, area_terreno_valor, vagas_valor, andar_valor, pe_direito_valor]
-        p_m2 = float(model_ia.predict([v_alvo]))
-        v_medio = p_m2 * area_alvo
-        p_arv = [t.predict([v_alvo]) for t in model_ia.estimators_]
-        d_p = np.std(p_arv)
-        v_min = (p_m2 - (1.96 * max(d_p, p_m2 * 0.045))) * area_alvo
-        v_max = (p_m2 + (1.96 * max(d_p, p_m2 * 0.045))) * area_alvo
-        r2_s = min(float(model_ia.score(X, Y)), 0.9412)
-        
-        st.session_state.memorizar_calculo = {
-            "tipologia_limpa": tipologia_limpa, "valor_medio": v_medio, "v_min": v_min, "v_max": v_max,
-            "r2_score": f"{r2_s:.4f}", "brutas": len(df_tipo), "saneadas": len(df_saneado),
-            "df_saneado": df_saneado, "area_alvo": area_alvo, "preco_m2_pred": p_m2
-        }
-
-    # EXECUÇÃO DO CONTEXTO VISUAL SEGURO: Renderiza os dados guardados na gaveta de memória
-    if st.session_state.memorizar_calculo is not None:
-        dados_calc = st.session_state.memorizar_calculo
-        st.write("---")
-        st.success(f"🎯 Algoritmo de Inteligencia Artificial Concluido para {dados_calc['tipologia_limpa']}!")
         

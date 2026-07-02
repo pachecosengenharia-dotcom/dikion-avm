@@ -150,9 +150,9 @@ with aba_avm:
         model_ia.fit(X, Y)
         
         v_alvo = [area_alvo, indice_alvo, area_terreno_valor, vagas_valor, andar_valor, pe_direito_valor]
-        p_m2 = float(model_ia.predict([v_alvo]))
+        p_m2 = float(model_ia.predict([v_alvo])[0])
         v_medio = p_m2 * area_alvo
-        p_arv = [t.predict([v_alvo]) for t in model_ia.estimators_]
+        p_arv = [t.predict([v_alvo])[0] for t in model_ia.estimators_]
         d_p = np.std(p_arv)
         v_min = (p_m2 - (1.96 * max(d_p, p_m2 * 0.045))) * area_alvo
         v_max = (p_m2 + (1.96 * max(d_p, p_m2 * 0.045))) * area_alvo

@@ -104,12 +104,22 @@ def gerar_laudo_pdf_ia(tenant, tipologia, area, valores, r2, n_amostras, status_
 # =====================================================================
 def executar_motor_ia(df_global, tipologia, area, indice_fiscal, atributos):
     df_tipo = df_global[df_global['tipologia'] == tipologia].copy()
+    
+    # 1. Defina as colunas esperadas
+    features = ['area_privativa', 'indice_fiscal', 'area_terreno', 'vagas_garagem', 'andar', 'pe_direito']
+    
+    # 2. Verifique se todas as colunas existem no DataFrame
+    colunas_faltantes = [col for col in (features + ['valor_total_declarado']) if col not in df_tipo.columns]
+    
+    if colunas_faltantes:
+        return None, f"Erro: As seguintes colunas não foram encontradas na sua base: {', '.join(colunas_faltantes)}"
+
+    # 3. Prossiga apenas se estiver tudo certo
     if len(df_tipo) < 3:
         return None, "Amostras insuficientes para esta tipologia na base carregada (mínimo 3)."
 
-    features = ['area_privativa', 'indice_fiscal', 'area_terreno', 'vagas_garagem', 'andar', 'pe_direito']
     df_tipo = df_tipo.dropna(subset=features + ['valor_total_declarado'])
-
+   
     X = df_tipo[features]
     y = df_tipo['valor_total_declarado']
 
@@ -179,6 +189,10 @@ with aba_avm:
 
     st.write("---")
     st.markdown("#### 🎯 Selecione a Tipologia do Imóvel Alvo")
+
+    # Adicione isso logo após ler o arquivo
+df_global.columns = [c.lower().strip().replace(" ", "_").replace("á", "a").replace("í", "i").replace("é", "e") 
+                     for c in df_global.columns]
 
     sub_casa, sub_apto, sub_lote, sub_galpao = st.tabs(["🏡 Casas", "🏢 Apartamentos", "📐 Lotes / Terrenos", "🏭 Galpões Comerciais"])
 

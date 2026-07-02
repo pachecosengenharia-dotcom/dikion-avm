@@ -192,33 +192,45 @@ with aba_avm:
                 df_global = pd.read_csv(arquivo_planilha)
             else:
                 df_global = pd.read_excel(arquivo_planilha)
-            
-            # --- LIMPEZA ESTRITADA DOS CABEÇALHOS ---
-            # Remove espaços extras, converte para minúsculo e remove acentos
-            import unicodedata
-            def normalizar_texto(texto):
-                texto = unicodedata.normalize('NFKD', str(texto)).encode('ASCII', 'ignore').decode('ASCII')
-                return texto.lower().strip().replace(" ", "_")
 
-            df_global.columns = [normalizar_texto(col) for col in df_global.columns]
-            
-            # Agora mapeamos os nomes "limpos" para os esperados pelo código
-            mapeamento = {
-                'valor_total': 'valor_total_declarado',
-                'valor_unitario': 'valor_unitario_m2',
-                'area': 'area_privativa',
-                'indice_fiscal': 'indice_fiscal',
-                'area_do_terreno': 'area_terreno',
-                'vagas': 'vagas_garagem',
-                'andar': 'andar',
-                'pe_direito': 'pe_direito',
-                'tipologia': 'tipologia'
+            # --- MAPEAMENTO INTELIGENTE (Flexível) ---
+            # Dicionário de sinônimos: o que o cliente pode escrever vs o que o código espera
+            dicionario_colunas = {
+                'valor_total_declarado': ['valor total', 'valor', 'preco', 'valor_total'],
+                'area_privativa': ['area', 'area privativa', 'area total', 'area construida'],
+                'indice_fiscal': ['indice fiscal', 'indice', 'iptu', 'codigo fiscal'],
+                'area_terreno': ['area terreno', 'terreno', 'area do terreno'],
+                'vagas_garagem': ['vagas', 'vaga', 'garagem', 'vagas de garagem'],
+                'andar': ['andar', 'pavimento', 'num andar'],
+                'pe_direito': ['pe direito', 'altura', 'pe_direito'],
+                'tipologia': ['tipologia', 'tipo', 'categoria', 'tipo de imovel']
             }
-            df_global = df_global.rename(columns=mapeamento)
+
+            # Função para encontrar a coluna correta baseada em similaridade
+            def encontrar_coluna(nome_esperado, colunas_df):
+                for col in colunas_df:
+                    col_limpa = col.lower().strip()
+                    if col_limpa in dicionario_colunas[nome_esperado]:
+                        return col
+                return None
+
+            # Renomeia dinamicamente
+            mapeamento_final = {}
+            for esperado in dicionario_colunas.keys():
+                coluna_encontrada = encontrar_coluna(esperado, df_global.columns)
+                if coluna_encontrada:
+                    mapeamento_final[coluna_encontrada] = esperado
             
-            st.success(f"🟩 Base '{arquivo_planilha.name}' carregada e normalizada!")
+            df_global = df_global.rename(columns=mapeamento_final)
+            
+            # Garante que a tipologia seja tratada corretamente
+            if 'tipologia' in df_global.columns:
+                df_global['tipologia'] = df_global['tipologia'].astype(str).str.upper().str.strip()
+
+            st.success("✅ Arquivo processado com sucesso (Colunas mapeadas automaticamente).")
+            
         except Exception as e:
-            st.error(f"Erro ao ler arquivo: {e}")
+            st.error(f"Erro ao processar arquivo: {e}")
         
 
 # Adicione isso logo após ler o arquivo

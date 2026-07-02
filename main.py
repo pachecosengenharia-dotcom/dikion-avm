@@ -210,17 +210,17 @@ df_global.columns = [c.lower().strip().replace(" ", "_").replace("á", "a").repl
 sub_casa, sub_apto, sub_lote, sub_galpao = st.tabs(["🏡 Casas", "🏢 Apartamentos", "📐 Lotes / Terrenos", "🏭 Galpões Comerciais"])
      
 # Mapeamento: "Nome no seu Excel" : "Nome que o código espera"
-            mapeamento = {
-                'Valor Total': 'valor_total_declarado',
-                'Valor Unitário': 'valor_unitario_m2',
-                'Área': 'area_privativa',
-                'Índice Fiscal': 'indice_fiscal',
-                'Área do Terreno': 'area_terreno',
-                'Vagas': 'vagas_garagem',
-                'Andar': 'andar',
-                'Pé Direito': 'pe_direito',
-                'Tipologia': 'tipologia'
-            }
+mapeamento = {
+    'Valor Total': 'valor_total_declarado',
+    'Valor Unitário': 'valor_unitario_m2',
+    'Área': 'area_privativa',
+    'Índice Fiscal': 'indice_fiscal',
+    'Área do Terreno': 'area_terreno',
+    'Vagas': 'vagas_garagem',
+    'Andar': 'andar',
+    'Pé Direito': 'pe_direito',
+    'Tipologia': 'tipologia'
+}
 
 # Renomeia as colunas do seu DataFrame global
 df_global = df_global.rename(columns=mapeamento)

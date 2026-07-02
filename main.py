@@ -58,4 +58,173 @@ def gerar_laudo_pdf_ia(tenant, tipologia, area, valores, r2, n_amostras, status_
     buffer.seek(0)
     return buffer.getvalue()
 
-# ... (O restante da sua interface permanece idêntica)
+# =====================================================================
+
+# INTERFACE PRINCIPAL DO PAINEL SAAS
+
+# =====================================================================
+
+st.title("🏢 Painel de Crédito e Controle Multi-Tenant - Inteligência Artificial")
+
+st.markdown("Gestão automatizada de risco imobiliário horizontal, vertical e industrial.")
+
+st.hr()
+
+
+
+st.sidebar.header("🔑 Assinatura e Faturamento")
+
+tenant_selecionado = st.sidebar.selectbox("Cliente Institucional", ["001 - Banco Alfa S.A.", "002 - Imobiliária Local Ltda"])
+
+plano_assinatura = "ENTERPRISE" if "Alfa" in tenant_selecionado else "STANDARD"
+
+
+
+st.sidebar.markdown(f"**Plano Contratado:** {'🟢 ENTERPRISE' if plano_assinatura == 'ENTERPRISE' else '🟡 STANDARD'}")
+
+
+
+# ABA DE ATRIBUTOS PRINCIPAIS
+
+aba_avm, aba_juridico = st.tabs(["📊 1. Avaliação Estatística por IA (AVM)", "📜 2. Análise Jurídica da Matrícula"])
+
+
+
+if 'status_juridico_global' not in st.session_state:
+
+    st.session_state.status_juridico_global = True
+
+if 'score_juridico_global' not in st.session_state:
+
+    st.session_state.score_juridico_global = "PENDENTE"
+
+
+
+with aba_avm:
+
+    st.subheader("Configuração da Base e Modelagem")
+
+    arquivo_planilha = st.file_uploader("Arraste aqui a planilha consolidada de imóveis do banco (.xlsx ou .csv)", type=["xlsx", "csv"])
+
+    
+
+    if arquivo_planilha is not None:
+
+        try:
+
+            if arquivo_planilha.name.endswith('.csv'):
+
+                df_global = pd.read_csv(arquivo_planilha)
+
+            else:
+
+                df_global = pd.read_excel(arquivo_planilha)
+
+            st.success(f"🟩 Base do banco '{arquivo_planilha.name}' carregada com sucesso!")
+
+        except Exception as e:
+
+            st.error(f"Erro ao ler arquivo: {e}")
+
+            df_global = carregar_base_multitipologia_padrao()
+
+    else:
+
+        st.info("💡 Modo de Demonstração: Utilizando a base de dados sintética de múltiplas tipologias.")
+
+        df_global = carregar_base_multitipologia_padrao()
+
+
+
+    st.write("---")
+
+    st.markdown("#### 🎯 Selecione a Tipologia do Imóvel Alvo")
+
+    
+
+    # CRIAÇÃO DAS SUB-ABAS DE TIPOLOGIAS (Múltiplos formulários dinâmicos)
+
+    sub_casa, sub_apto, sub_lote, sub_galpao = st.tabs(["🏡 Casas", "🏢 Apartamentos", "📐 Lotes / Terrenos", "🏭 Galpões Comerciais"])
+
+    
+
+    # Inicialização de variáveis de controle para o motor de IA
+
+    tipologia_selecionada = "CASA"
+
+    area_alvo = 75.0
+
+    indice_fiscal_alvo = 100.0
+
+    atributos_adicionais = {}
+
+    
+
+    with sub_casa:
+
+        st.markdown("##### Parâmetros para Imóveis Horizontais")
+
+        c1, c2, c3 = st.columns(3)
+
+        area_casa = c1.number_input("Área Construída Privativa (m²)", min_value=10.0, value=120.0, key="c_a")
+
+        terreno_casa = c1.number_input("Área Total do Terreno (m²)", min_value=10.0, value=360.0, key="c_t")
+
+        quartos_casa = c2.slider("Quantidade de Quartos", 1, 6, 3, key="c_q")
+
+        indice_casa = c2.number_input("Índice Fiscal da Quadra (Prefeitura)", min_value=0.0, value=1450.0, key="c_i")
+
+        padrao_casa = c3.selectbox("Padrão Construtivo da Casa", ["Baixo", "Normal", "Alto"], index=1, key="c_p")
+
+        if st.button("🚀 Calcular AVM de Casa"):
+
+            tipologia_selecionada = "CASA"
+
+            area_alvo = area_casa
+
+            indice_fiscal_alvo = indice_casa
+
+            atributos_adicionais = {"area_terreno": terreno_casa, "vagas_garagem": quartos_casa - 1, "andar": 0, "pe_direito": 3.0}
+
+            st.session_state.executar_ia = True
+
+
+
+    with sub_apto:
+
+        st.markdown("##### Parâmetros para Edificações Verticais")
+
+        a1, a2, a3 = st.columns(3)
+
+        area_apto = a1.number_input("Área Privativa do Apartamento (m²)", min_value=10.0, value=75.0, key="ap_a")
+
+        andar_apto = a1.number_input("Número do Andar / Pavimento", min_value=0, value=5, key="ap_an")
+
+        vagas_apto = a2.slider("Vagas de Garagem no Subsolo", 0, 4, 1, key="ap_v")
+
+        indice_apto = a2.number_input("Índice Fiscal da Quadra (Prefeitura)", min_value=0.0, value=2800.0, key="ap_i")
+
+        padrao_apto = a3.selectbox("Padrão Construtivo do Prédio", ["Baixo", "Normal", "Alto"], index=1, key="ap_p")
+
+        if st.button("🚀 Calcular AVM de Apartamento"):
+
+            tipologia_selecionada = "APARTAMENTO"
+
+            area_alvo = area_apto
+
+            indice_fiscal_alvo = indice_apto
+
+            atributos_adicionais = {"area_terreno": 0, "vagas_garagem": vagas_apto, "andar": andar_apto, "pe_direito": 2.8}
+
+            st.session_state.executar_ia = True
+
+
+
+    with sub_lote:
+
+        st.markdown("##### Parâmetros para Solos Nus / Lotes")
+
+        l1, l2 = st.columns(2)
+
+        area_lote = l1.number_input("Área Total do Lote (m²)", min_value=10.0, value=450.0, key="lo_a") 
+

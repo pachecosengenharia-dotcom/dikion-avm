@@ -299,7 +299,7 @@ with sub_galpao:
     # =================================================================
     # EXECUÇÃO DO MOTOR DE IA (persistente via session_state)
     # =================================================================
-    if 'alvo' in st.session_state:
+if 'alvo' in st.session_state:
         alvo = st.session_state.alvo
         st.write("---")
         st.subheader(f"📈 Resultado da Avaliação — {alvo['tipologia']}")

@@ -192,16 +192,34 @@ with aba_avm:
                 df_global = pd.read_csv(arquivo_planilha)
             else:
                 df_global = pd.read_excel(arquivo_planilha)
-            st.success(f"🟩 Base do banco '{arquivo_planilha.name}' carregada com sucesso!")
+            
+            # --- LIMPEZA ESTRITADA DOS CABEÇALHOS ---
+            # Remove espaços extras, converte para minúsculo e remove acentos
+            import unicodedata
+            def normalizar_texto(texto):
+                texto = unicodedata.normalize('NFKD', str(texto)).encode('ASCII', 'ignore').decode('ASCII')
+                return texto.lower().strip().replace(" ", "_")
+
+            df_global.columns = [normalizar_texto(col) for col in df_global.columns]
+            
+            # Agora mapeamos os nomes "limpos" para os esperados pelo código
+            mapeamento = {
+                'valor_total': 'valor_total_declarado',
+                'valor_unitario': 'valor_unitario_m2',
+                'area': 'area_privativa',
+                'indice_fiscal': 'indice_fiscal',
+                'area_do_terreno': 'area_terreno',
+                'vagas': 'vagas_garagem',
+                'andar': 'andar',
+                'pe_direito': 'pe_direito',
+                'tipologia': 'tipologia'
+            }
+            df_global = df_global.rename(columns=mapeamento)
+            
+            st.success(f"🟩 Base '{arquivo_planilha.name}' carregada e normalizada!")
         except Exception as e:
             st.error(f"Erro ao ler arquivo: {e}")
-            df_global = carregar_base_multitipologia_padrao()
-    else:
-        st.info("💡 Modo de Demonstração: Utilizando a base de dados sintética de múltiplas tipologias.")
-        df_global = carregar_base_multitipologia_padrao()
-
-    st.write("---")
-    st.markdown("#### 🎯 Selecione a Tipologia do Imóvel Alvo")
+        
 
 # Adicione isso logo após ler o arquivo
 df_global.columns = [c.lower().strip().replace(" ", "_").replace("á", "a").replace("í", "i").replace("é", "e") 

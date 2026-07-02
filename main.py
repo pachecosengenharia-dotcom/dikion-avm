@@ -253,7 +253,7 @@ mapeamento = {
 }
 
 # Renomeia as colunas do seu DataFrame global
-            df_global = df_global.rename(columns=mapeamento)
+        df_global = df_global.rename(columns=mapeamento)
 with sub_casa:
         st.markdown("##### Parâmetros para Imóveis Horizontais")
         c1, c2, c3 = st.columns(3)

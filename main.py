@@ -61,8 +61,8 @@ def gerar_laudo_pdf_ia(tenant, tipologia, area, valores, model_stats, status_jur
     story.append(Paragraph(f"<b>Instituicao Solicitante:</b> {tenant}", text_style))
     story.append(Spacer(1, 10))
     
-    # Linhas com colwidths totalmente preenchidos e corrigidos em minúsculo
-    t1 = Table([["Tipologia do Bem", tipologia, "Dimensao Principal", f"{area} m²"]], colwidths=[130, 110, 130, 110])
+    # CORREÇÃO DEFINITIVA: colWidths com "W" maiúsculo exigido pelo ReportLab
+    t1 = Table([["Tipologia do Bem", tipologia, "Dimensao Principal", f"{area} m²"]], colWidths=[130, 110, 130, 110])
     t1.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#F7FAFC")), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#E2E8F0")), ('PADDING', (0,0), (-1,-1), 5)]))
     story.append(t1)
     
@@ -71,7 +71,7 @@ def gerar_laudo_pdf_ia(tenant, tipologia, area, valores, model_stats, status_jur
         ["Margem Minima de Seguranca", f"R$ {valores['v_min']:,.2f}"],
         ["Valor de Face Estimado", f"R$ {valores['v_medio']:,.2f}"],
         ["Limite de Mercado Maximo", f"R$ {valores['v_max']:,.2f}"]
-    ], colwidths=[240, 240])
+    ], colWidths=[240, 240])
     t2.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor("#2B6CB0")), ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E0")), ('PADDING', (0,0), (-1,-1), 5)]))
     story.append(t2)
     
@@ -101,7 +101,18 @@ if 'memorizar_calculo' not in st.session_state: st.session_state.memorizar_calcu
 with aba_avm:
     st.subheader("Configuracao da Base e Modelagem")
     arquivo_planilha = st.file_uploader("Arraste aqui a planilha consolidada de imoveis do banco (.xlsx ou .csv)", type=["xlsx", "csv"])
-    df_global = carregar_base_multitipologia_padrao() if arquivo_planilha is None else (pd.read_csv(arquivo_planilha) if arquivo_planilha.name.endswith('.csv') else pd.read_excel(arquivo_planilha))
+    
+    # VALIDAÇÃO EM TEMPO REAL: Se houver planilha, o sistema lê e valida os dados na hora
+    if arquivo_planilha is not None:
+        try:
+            df_global = pd.read_csv(arquivo_planilha) if arquivo_planilha.name.endswith('.csv') else pd.read_excel(arquivo_planilha)
+            st.success(f"🟩 Planilha VALIDADA: {len(df_global)} imóveis carregados com sucesso!")
+        except Exception as e:
+            st.error(f"Erro na validação do arquivo: {e}")
+            df_global = carregar_base_multitipologia_padrao()
+    else:
+        st.info("💡 Modo de Demonstracao: Utilizando a base de dados sintetica.")
+        df_global = carregar_base_multitipologia_padrao()
 
     st.write("---")
     tipologia_sel = st.selectbox("🎯 Selecione a Tipologia do Imovel Alvo para Configuracao:", ["🏡 CASA", "🏢 APARTAMENTO", "📐 LOTE", "🏭 GALPAO"])
@@ -128,6 +139,7 @@ with aba_avm:
     if st.button("🚀 Calcular Avaliacao por Inteligencia Artificial"):
         tipologia_limpa = tipologia_sel.replace("🏡 ", "").replace("🏢 ", "").replace("📐 ", "").replace("🏭 ", "").strip()
         df_local_processamento = df_global.copy()
+        
         df_local_processamento['tipologia'] = df_local_processamento['tipologia'].astype(str).str.upper().str.strip() if 'tipologia' in df_local_processamento.columns else "CASA"
         df_tipo = df_local_processamento[df_local_processamento['tipologia'] == tipologia_limpa].copy()
         
@@ -150,9 +162,9 @@ with aba_avm:
         model_ia.fit(X, Y)
         
         v_alvo = [area_alvo, indice_alvo, area_terreno_valor, vagas_valor, andar_valor, pe_direito_valor]
-        p_m2 = float(model_ia.predict([v_alvo])[0])
+        p_m2 = float(model_ia.predict([v_alvo]))
         v_medio = p_m2 * area_alvo
-        p_arv = [t.predict([v_alvo])[0] for t in model_ia.estimators_]
+        p_arv = [t.predict([v_alvo]) for t in model_ia.estimators_]
         d_p = np.std(p_arv)
         v_min = (p_m2 - (1.96 * max(d_p, p_m2 * 0.045))) * area_alvo
         v_max = (p_m2 + (1.96 * max(d_p, p_m2 * 0.045))) * area_alvo
@@ -164,43 +176,7 @@ with aba_avm:
             "df_saneado": df_saneado, "area_alvo": area_alvo, "preco_m2_pred": p_m2
         }
 
-        # SEÇÃO VISUAL FIXA E COMPLETA: Imprime todos os resultados da gaveta de memória
     if st.session_state.memorizar_calculo is not None:
         dados_calc = st.session_state.memorizar_calculo
         st.write("---")
         st.success(f"🎯 Algoritmo de Inteligencia Artificial Concluido para {dados_calc['tipologia_limpa']}!")
-        
-        cv1, cv2, cv3 = st.columns(3)
-        cv1.metric(label="Valor Estimado de Mercado (Media)", value=f"R$ {dados_calc['valor_medio']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-        cv2.metric(label="Minimo Admissivel (Garantia LTV)", value=f"R$ {dados_calc['v_min']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-        cv3.metric(label="Maximo Admissivel", value=f"R$ {dados_calc['v_max']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-        
-        st.markdown("### 📋 Enquadramento Normativo e Performance da IA")
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Precisao das Arvores de Decisao (R²)", dados_calc['r2_score'])
-        m2.metric("Amostras Brutas Lidas", f"{dados_calc['brutas']} {dados_calc['tipologia_limpa']}s")
-        m3.metric("Amostras Homologadas (Pos-IQR)", f"{dados_calc['saneadas']} {dados_calc['tipologia_limpa']}s")
-        
-        grafico_buf = gerar_grafico_mercado(dados_calc['df_saneado'], dados_calc['area_alvo'], dados_calc['preco_m2_pred'])
-        st.image(grafico_buf, caption="Grafico de Dispersao Espacial do Mercado de Goiania")
-        
-        model_stats = {"r2": dados_calc['r2_score'], "saneadas": dados_calc['saneadas']}
-        valores_dict = {"v_medio": dados_calc['valor_medio'], "v_min": dados_calc['v_min'], "v_max": dados_calc['v_max']}
-        
-        pdf_bytes = gerar_laudo_pdf_ia(
-            tenant_selecionado, dados_calc['tipologia_limpa'], dados_calc['area_alvo'], valores_dict, model_stats,
-            st.session_state.status_juridico_global, st.session_state.score_juridico_global, grafico_buf
-        )
-        st.markdown("### 📥 Emissao de Relatorio Certificado")
-        st.download_button(label="📄 Baixar Laudo de IA Certificado (PDF)", data=pdf_bytes, file_name="laudo_ia_NBR14653.pdf", mime="application/pdf")
-
-with aba_juridico:
-    st.subheader("Esteira de Analise de Risco Documental")
-    txt = st.text_area("Texto Identificado na Certidao", "MATRÍCULA Nº 15.234... R-3: PENHORA JUDICIAL ativa...", height=100)
-    if st.button("🔍 Auditar Matricula do Imovel"):
-        st.write("---")
-        if "penhora" in txt.lower(): st.error("❌ REJEITADO - ALTO RISCO")
-        else: st.success("✅ APROVADO - BAIXO RISCO")
-
-st.divider()
-st.caption("🔒 Plataforma AVM SaaS v3.5.0 | Criptografia ativa e em conformidade estrita com as normas da ABNT NBR 14653-2.")

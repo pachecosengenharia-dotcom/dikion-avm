@@ -108,24 +108,40 @@ with aba_avm:
     st.subheader("Configuracao da Base e Modelagem")
     arquivo_planilha = st.file_uploader("Arraste aqui a planilha consolidada de imoveis do banco (.xlsx ou .csv)", type=["xlsx", "csv"])
     
-    if arquivo_planilha is not None:
+        if arquivo_planilha is not None:
         try:
             df_bruto = pd.read_csv(arquivo_planilha) if arquivo_planilha.name.endswith('.csv') else pd.read_excel(arquivo_planilha)
             df_global = df_bruto.copy()
+            
+            # 1. Normalizar nomes das colunas
+            df_global.columns = df_global.columns.str.lower().str.strip()
+            
+            # 2. Mapear sinônimos conhecidos
             colunas_mapeamento = {
                 'area_construida': 'area_privativa', 'area_util': 'area_privativa', 'metragem': 'area_privativa',
                 'preco_m2': 'valor_unitario_m2', 'valor_m2': 'valor_unitario_m2',
                 'preco': 'valor_total_declarado', 'valor': 'valor_total_declarado'
             }
-            df_global.columns = df_global.columns.str.lower().str.strip()
             df_global.rename(columns=colunas_mapeamento, inplace=True)
+            
+            # 3. GARANTIA ANTI-CRASH: Forçar existência de todas as colunas necessárias
+            colunas_obrigatorias = {
+                'valor_total_declarado': 0.0, 'valor_unitario_m2': 0.0, 
+                'area_privativa': 0.0, 'indice_fiscal': 0.0, 
+                'area_terreno': 0.0, 'vagas_garagem': 0, 
+                'andares': 0, 'pe_direito': 3.0, 
+                'tipologia': tipologia_sel # Se não houver, assume a selecionada na tela
+            }
+            
+            for col, val_padrao in colunas_obrigatorias.items():
+                if col not in df_global.columns:
+                    df_global[col] = val_padrao
+                    
             st.success(f"🟩 Planilha VALIDADA: {len(df_global)} imóveis lidos com sucesso!")
         except Exception as e:
             st.error(f"Erro na leitura da planilha: {e}. Carregando base simulada...")
             df_global = carregar_base_multitipologia_padrao()
-    else:
-        st.info("💡 Modo de Demonstracao: Utilizando a base de dados sintetica.")
-        df_global = carregar_base_multitipologia_padrao()
+
 
     st.write("---")
     tipologia_sel = st.selectbox("🎯 Selecione a Tipologia do Imovel Alvo para Configuracao:", ["CASA", "APARTAMENTO", "GALPAO"])

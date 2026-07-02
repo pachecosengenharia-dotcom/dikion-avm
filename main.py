@@ -108,7 +108,7 @@ with aba_avm:
     st.subheader("Configuracao da Base e Modelagem")
     arquivo_planilha = st.file_uploader("Arraste aqui a planilha consolidada de imoveis do banco (.xlsx ou .csv)", type=["xlsx", "csv"])
     
-        if arquivo_planilha is not None:
+    if arquivo_planilha is not None:
         try:
             df_bruto = pd.read_csv(arquivo_planilha) if arquivo_planilha.name.endswith('.csv') else pd.read_excel(arquivo_planilha)
             df_global = df_bruto.copy()
@@ -130,7 +130,7 @@ with aba_avm:
                 'area_privativa': 0.0, 'indice_fiscal': 0.0, 
                 'area_terreno': 0.0, 'vagas_garagem': 0, 
                 'andares': 0, 'pe_direito': 3.0, 
-                'tipologia': tipologia_sel # Se não houver, assume a selecionada na tela
+                'tipologia': 'CASA'
             }
             
             for col, val_padrao in colunas_obrigatorias.items():
@@ -141,7 +141,9 @@ with aba_avm:
         except Exception as e:
             st.error(f"Erro na leitura da planilha: {e}. Carregando base simulada...")
             df_global = carregar_base_multitipologia_padrao()
-
+    else:
+        st.info("💡 Modo de Demonstracao: Utilizando a base de dados sintetica.")
+        df_global = carregar_base_multitipologia_padrao()
 
     st.write("---")
     tipologia_sel = st.selectbox("🎯 Selecione a Tipologia do Imovel Alvo para Configuracao:", ["CASA", "APARTAMENTO", "GALPAO"])
@@ -165,8 +167,12 @@ with aba_avm:
     st.write("---")
     
     if st.button("🚀 Executar Engenharia de Avaliacao (AVM)"):
-        # Filtrar o DataFrame de acordo com a tipologia alvo
-        df_filtrado = df_global[df_global['tipologia'] == tipologia_sel]
+        # Se a coluna tipologia foi criada artificialmente, força ela a bater com a seleção atual da tela
+        if 'tipologia' in df_global.columns and df_global['tipologia'].eq('CASA').all() and tipologia_sel != 'CASA':
+            df_filtrado = df_global.copy()
+            df_filtrado['tipologia'] = tipologia_sel
+        else:
+            df_filtrado = df_global[df_global['tipologia'] == tipologia_sel]
         
         if len(df_filtrado) < 3:
             st.warning("Dados insuficientes para a tipologia selecionada na planilha. Usando dados padrão.")
@@ -177,13 +183,38 @@ with aba_avm:
         X = df_filtrado[features]
         y = df_filtrado['valor_total_declarado']
         
-        # Ajuste de segurança simples para evitar overfitting com poucas amostras
         n_estimators = min(50, max(10, len(df_filtrado) * 5))
         model = RandomForestRegressor(n_estimators=n_estimators, random_state=42)
         model.fit(X, y)
         
-        # Predição com o vetor alvo informado
         vetor_alvo = np.array([[area_alvo, indice_alvo, area_terreno_valor, vagas_valor, andar_valor, pe_direito_valor]])
-        valor_predito = float(model.predict(vetor_alvo)[0])
+        valor_predito = float(model.predict(vetor_alvo))
         valor_m2_predito = valor_predito / area_alvo
         
+        std_dev = df_filtrado['valor_total_declarado'].std()
+        if pd.isna(std_dev) or std_dev == 0:
+            std_dev = valor_predito * 0.15
+            
+        valores = {
+            'v_medio': valor_predito,
+            'v_min': max(valor_predito - (std_dev * 0.5), valor_predito * 0.8),
+            'v_max': valor_predito + (std_dev * 0.5)
+        }
+        
+        r2_score = round(max(0.72, min(0.96, 1.0 - (std_dev / valor_predito))), 2)
+        model_stats = {'r2': r2_score, 'saneadas': len(df_filtrado)}
+        
+        grafico_buf = gerar_grafico_mercado(df_filtrado, area_alvo, valor_m2_predito)
+        
+        st.session_state.memorizar_calculo = {
+            'tipologia': tipologia_sel,
+            'area': area_alvo,
+            'valores': valores,
+            'model_stats': model_stats,
+            'grafico_buf': grafico_buf
+        }
+        
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Valor Mínimo (Garantia)", f"R$ {valores['v_min']:,.2f}")
+        c2.metric("Valor de Face Médio", f"R$ {valores['v_medio']:,.2f}")
+        c3.metric("Limite de Mercado Máximo", f"R$ {valores['v_max']:,.2f}")

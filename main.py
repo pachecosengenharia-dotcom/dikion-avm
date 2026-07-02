@@ -189,7 +189,7 @@ with aba_avm:
    if arquivo_planilha is not None:
         try:
             # Leitura
-            if arquivo_planilha.name.endswith('.csv'):
+            if arquivo_planilha.name.endswith('.xlsx'):
                 df_global = pd.read_csv(arquivo_planilha)
             else:
                 df_global = pd.read_excel(arquivo_planilha)

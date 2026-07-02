@@ -224,7 +224,7 @@ mapeamento = {
 
 # Renomeia as colunas do seu DataFrame global
 df_global = df_global.rename(columns=mapeamento)
-    with sub_casa:
+with sub_casa:
         st.markdown("##### Parâmetros para Imóveis Horizontais")
         c1, c2, c3 = st.columns(3)
         area_casa = c1.number_input("Área Construída Privativa (m²)", min_value=10.0, value=120.0, key="c_a")

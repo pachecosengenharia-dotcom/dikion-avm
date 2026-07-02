@@ -81,7 +81,7 @@ def gerar_laudo_pdf_ia(tenant, tipologia, area, valores, model_stats, status_jur
     story.append(Spacer(1, 10))
     
     story.append(Paragraph("1. Escopo de Avaliação Imobiliária", subtitle_style))
-    t1 = Table([["Tipologia do Bem", tipologia, "Dimensão Principal", f"{area} m²"]], colWidths=[130, 130, 130, 130])
+    t1 = Table([["Tipologia do Bem", tipologia, "Dimensão Principal", f"{area} m²"]], colwidths=[120, 120, 120, 120])
     t1.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#F7FAFC")), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#E2E8F0")), ('PADDING', (0,0), (-1,-1), 5)]))
     story.append(t1)
     
@@ -91,7 +91,7 @@ def gerar_laudo_pdf_ia(tenant, tipologia, area, valores, model_stats, status_jur
         ["Margem Mínima de Segurança (Garantia)", f"R$ {valores['v_min']:,.2f}"],
         ["Valor de Face Estimado (Média)", f"R$ {valores['v_medio']:,.2f}"],
         ["Limite de Mercado Máximo", f"R$ {valores['v_max']:,.2f}"]
-    ], colWidths=[260, 260])
+    ], colwidths=[240, 240])
     t2.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor("#2B6CB0")), ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E0")), ('PADDING', (0,0), (-1,-1), 5)]))
     story.append(t2)
     story.append(Spacer(1, 5))
@@ -102,7 +102,7 @@ def gerar_laudo_pdf_ia(tenant, tipologia, area, valores, model_stats, status_jur
     story.append(Spacer(1, 10))
     
     story.append(Paragraph("3. Status da Esteira de Risco Jurídico", subtitle_style))
-    t3 = Table([["Status Documental", "APROVADO PARA GARANTIA" if status_juridico else "REPROVADO"], ["Grau de Risco Legal", score_juridico]], colWidths=[260, 260])
+    t3 = Table([["Status Documental", "APROVADO PARA GARANTIA" if status_juridico else "REPROVADO"], ["Grau de Risco Legal", score_juridico]], colwidths=[240, 240])
     t3.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E0")), ('PADDING', (0,0), (-1,-1), 5), ('TEXTCOLOR', (1,0), (1,0), colors.HexColor("#38A169") if status_juridico else colors.HexColor("#E53E3E"))]))
     story.append(t3)
     
@@ -119,6 +119,7 @@ st.divider()
 
 st.sidebar.header("🔑 Assinatura e Faturamento")
 tenant_selecionado = st.sidebar.selectbox("Cliente Institucional", ["001 - Banco Alfa S.A.", "002 - Imobiliária Local Ltda"])
+plano_assinatura = "ENTERPRISE"
 st.sidebar.markdown("**Plano Contratado:** 🟢 ENTERPRISE (Acesso Total Liberado)")
 
 aba_avm, aba_juridico = st.tabs(["📊 1. Avaliação Estatística por IA (AVM)", "📜 2. Análise Jurídica"])
@@ -133,10 +134,7 @@ with aba_avm:
     
     if arquivo_planilha is not None:
         try:
-            if arquivo_planilha.name.endswith('.csv'):
-                df_global = pd.read_csv(arquivo_planilha)
-            else:
-                df_global = pd.read_excel(arquivo_planilha)
+            df_global = pd.read_csv(arquivo_planilha) if arquivo_planilha.name.endswith('.csv') else pd.read_excel(arquivo_planilha)
             st.success(f"🟩 Base do banco '{arquivo_planilha.name}' carregada com sucesso!")
         except Exception as e:
             st.error(f"Erro ao ler arquivo: {e}")
@@ -146,21 +144,14 @@ with aba_avm:
         df_global = carregar_base_multitipologia_padrao()
 
     st.write("---")
-    
     tipologia_sel = st.selectbox("🎯 Selecione a Tipologia do Imóvel Alvo para Configuração:", ["🏡 CASA", "🏢 APARTAMENTO", "📐 LOTE", "🏭 GALPAO"])
-    
     st.write("---")
-    st.markdown("#### Atributos do Imóvel Avaliado")
     
     col1, col2 = st.columns(2)
     area_alvo = col1.number_input("Dimensão/Área Principal (m²)", min_value=10.0, value=120.0)
     indice_alvo = col2.number_input("Índice Fiscal da Quadra (Planta de Valores Prefeitura)", min_value=0.0, value=1200.0)
     
-    area_terreno_valor = 0.0
-    vagas_valor = 0
-    andar_valor = 0
-    pe_direito_valor = 3.0
-    
+    area_terreno_valor, vagas_valor, andar_valor, pe_direito_valor = 0.0, 0, 0, 3.0
     if "CASA" in tipologia_sel:
         area_terreno_valor = col1.number_input("Área Total do Terreno / Lote (m²)", min_value=10.0, value=200.0)
         vagas_valor = col2.slider("Quantidade de Quartos", 1, 6, 3)
@@ -171,8 +162,6 @@ with aba_avm:
     elif "GALPAO" in tipologia_sel:
         pe_direito_valor = col1.number_input("Pé-direito Livre (Metros)", min_value=3.0, value=7.5)
         area_terreno_valor = area_alvo * 1.5
-    elif "LOTE" in tipologia_sel:
-        area_terreno_valor = area_alvo
 
     st.write("---")
     
@@ -180,5 +169,6 @@ with aba_avm:
         tipologia_limpa = tipologia_sel.replace("🏡 ", "").replace("🏢 ", "").replace("📐 ", "").replace("🏭 ", "").strip()
         df_local_processamento = df_global.copy()
         
-       if 'tipologia' in df_local_processamento.columns:
-    pass
+        if 'tipologia' in df_local_processamento.columns: 
+            df_local_processamento['tipologia'] = df_local_processamento['tipologia'].astype(str).str.upper().str.strip()
+        else: 

@@ -14,14 +14,24 @@ st.set_page_config(page_title="AVM SaaS Pro", layout="wide")
 # FUNÇÕES DE LÓGICA E PDF
 # =====================================================================
 def treinar_e_prever(df, tipologia, params):
+    # Normalização para garantir correspondência no filtro
+    df['tipologia'] = df['tipologia'].astype(str).str.upper().str.strip()
+    
     df_f = df[df['tipologia'] == tipologia].copy()
+    
+    if len(df_f) < 2:
+        return None, "Dados insuficientes para esta tipologia."
+
     features = ['area_privativa', 'indice_fiscal', 'area_terreno', 'vagas_garagem', 'andar', 'pe_direito']
     X = df_f[features]
     y = df_f['valor_total_declarado']
     
     model = RandomForestRegressor(n_estimators=100, random_state=42)
     model.fit(X, y)
-    return model.predict(np.array([params]))[0]
+    
+    input_df = pd.DataFrame([params], columns=features)
+    valor = model.predict(input_df)[0]
+    return valor, None
 
 def gerar_pdf(tenant, tipologia, valor, juridico):
     buffer = io.BytesIO()
@@ -33,43 +43,36 @@ def gerar_pdf(tenant, tipologia, valor, juridico):
     t = Table(data, colWidths=[200, 200])
     t.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 1, colors.black)]))
     story.append(t)
-    
     doc.build(story)
     return buffer.getvalue()
 
 # =====================================================================
 # INTERFACE PRINCIPAL
 # =====================================================================
+st.title("🏢 AVM SaaS - Plataforma de Avaliação")
 st.sidebar.header("⚙️ Configurações")
 tenant = st.sidebar.selectbox("Cliente Institucional", ["Banco Alfa", "Imobiliária Beta"])
+uploaded_file = st.sidebar.file_uploader("Upload Base (.csv ou .xlsx)", type=["csv", "xlsx"])
 
-# Upload de arquivos (Suporta CSV e XLSX)
-uploaded_file = st.sidebar.file_uploader("Upload Base de Dados", type=["csv", "xlsx"])
-
+# Carregamento de dados
 if uploaded_file:
-    if uploaded_file.name.endswith('.csv'):
-        df = pd.read_csv(uploaded_file)
-    else:
-        df = pd.read_excel(uploaded_file)
-    st.sidebar.success("Base carregada com sucesso!")
+    df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
 else:
-    # Base padrão para demonstração
     df = pd.DataFrame({
-        'valor_total_declarado': [500000, 350000],
-        'area_privativa': [100, 60],
-        'indice_fiscal': [1000, 1500],
-        'area_terreno': [200, 0],
-        'vagas_garagem': [2, 1],
-        'andar': [0, 3],
-        'pe_direito': [2.8, 2.7],
-        'tipologia': ['CASA', 'APARTAMENTO']
+        'valor_total_declarado': [500000, 350000, 150000],
+        'area_privativa': [100, 60, 300],
+        'indice_fiscal': [1000, 1500, 800],
+        'area_terreno': [200, 0, 300],
+        'vagas_garagem': [2, 1, 0],
+        'andar': [0, 3, 0],
+        'pe_direito': [2.8, 2.7, 0.0],
+        'tipologia': ['CASA', 'APARTAMENTO', 'LOTE']
     })
 
-# Abas Principais
+# Abas
 tab1, tab2 = st.tabs(["📊 Avaliação AVM", "⚖️ Análise Jurídica"])
 
 with tab1:
-    st.subheader("Configuração da Avaliação")
     tipo = st.selectbox("Tipologia", ["CASA", "APARTAMENTO", "LOTE"])
     c1, c2 = st.columns(2)
     area = c1.number_input("Área Privativa (m²)", value=100.0)
@@ -81,18 +84,19 @@ with tab1:
     
     if st.button("Executar Precificação"):
         params = [area, indice, terreno, vagas, andar, pdireito]
-        resultado = treinar_e_prever(df, tipo, params)
-        st.session_state.res = resultado
-        st.session_state.tipo = tipo
-        st.metric("Valor Estimado", f"R$ {resultado:,.2f}")
+        resultado, erro = treinar_e_prever(df, tipo, params)
+        if erro:
+            st.error(erro)
+        else:
+            st.session_state.res = resultado
+            st.session_state.tipo = tipo
+            st.metric("Valor Estimado", f"R$ {resultado:,.2f}")
 
 with tab2:
     st.subheader("Status Documental")
     doc_status = st.radio("Aprovar Matrícula?", ["APROVADO", "PENDENTE", "REPROVADO"])
     st.session_state.juridico = doc_status
-    st.info(f"Status para {tenant}: {doc_status}")
 
-# Download final
 if 'res' in st.session_state:
     if st.button("Gerar Laudo PDF Final"):
         pdf = gerar_pdf(tenant, st.session_state.tipo, st.session_state.res, st.session_state.juridico)

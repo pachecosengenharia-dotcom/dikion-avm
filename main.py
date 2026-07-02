@@ -45,7 +45,6 @@ def gerar_grafico_mercado(df_saneado, area_alvo, valor_estimado_m2):
 
 def gerar_laudo_pdf_ia(tenant, tipologia, area, valores, model_stats, status_juridico, score_juridico, grafico_buf):
     buffer = io.BytesIO()
-    # Margens e tamanhos perfeitamente travados para evitar erros de renderização
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40.0, leftMargin=40.0, topMargin=40.0, bottomMargin=40.0)
     story = []
     styles = getSampleStyleSheet()
@@ -58,7 +57,6 @@ def gerar_laudo_pdf_ia(tenant, tipologia, area, valores, model_stats, status_jur
     story.append(Spacer(1, 10.0))
     
     story.append(Paragraph("1. Escopo de Avaliacao Imobiliaria", subtitle_style))
-    # Tuplas de floats puros nas dimensões (Proteção Máxima)
     t1 = Table([["Tipologia do Bem", tipologia, "Dimensao Principal", f"{area} m²"]], colWidths=(130.0, 110.0, 130.0, 110.0))
     t1.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#F7FAFC")), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#E2E8F0")), ('PADDING', (0,0), (-1,-1), 5.0)]))
     story.append(t1)
@@ -101,6 +99,7 @@ st.sidebar.markdown("**Plano Contratado:** 🟢 ENTERPRISE (Acesso Total Liberad
 
 aba_avm, aba_juridico = st.tabs(["📊 1. Avaliacao Estatistica por IA (AVM)", "📜 2. Analise Juridica"])
 
+# Inicialização segura de variáveis de estado
 if 'status_juridico_global' not in st.session_state: st.session_state.status_juridico_global = True
 if 'score_juridico_global' not in st.session_state: st.session_state.score_juridico_global = "PENDENTE"
 if 'memorizar_calculo' not in st.session_state: st.session_state.memorizar_calculo = None
@@ -113,8 +112,6 @@ with aba_avm:
         try:
             df_bruto = pd.read_csv(arquivo_planilha) if arquivo_planilha.name.endswith('.csv') else pd.read_excel(arquivo_planilha)
             df_global = df_bruto.copy()
-            
-            # NORMALIZAÇÃO AUTOMÁTICA DE COLUNAS EXTERNAS: Evita quebra por nomes diferentes no Excel
             colunas_mapeamento = {
                 'area_construida': 'area_privativa', 'area_util': 'area_privativa', 'metragem': 'area_privativa',
                 'preco_m2': 'valor_unitario_m2', 'valor_m2': 'valor_unitario_m2',
@@ -152,11 +149,11 @@ with aba_avm:
 
     st.write("---")
     
+    # GATILHO COMPACTADO DO BOTÃO DE CÁLCULO
     if st.button("🚀 Calcular Avaliacao por Inteligencia Artificial"):
         tipologia_limpa = tipologia_sel.replace("🏡 ", "").replace("🏢 ", "").replace("📐 ", "").replace("🏭 ", "").strip()
         df_local_processamento = df_global.copy()
         
-        # Mapeamento linear seguro da tipologia
         df_local_processamento['tipologia'] = df_local_processamento['tipologia'].astype(str).str.upper().str.strip() if 'tipologia' in df_local_processamento.columns else "CASA"
         df_tipo = df_local_processamento[df_local_processamento['tipologia'] == tipologia_limpa].copy()
         
@@ -164,5 +161,10 @@ with aba_avm:
             df_backup = carregar_base_multitipologia_padrao()
             df_tipo = df_backup[df_backup['tipologia'] == tipologia_limpa].copy()
             
-        # Garante que todas as colunas numéricas exigidas existam e estejam limpas
         for col_nome in ['area_privativa', 'indice_fiscal', 'area_terreno', 'vagas_garagem', 'andares', 'pe_direito', 'valor_unitario_m2']:
+            if col_nome not in df_tipo.columns: df_tipo[col_nome] = 0.0
+            df_tipo[col_nome] = pd.to_numeric(df_tipo[col_nome], errors='coerce').fillna(0.0)
+            
+        q1 = df_tipo['valor_unitario_m2'].quantile(0.25)
+        q3 = df_tipo['valor_unitario_m2'].quantile(0.75)
+        iqr = q3 - q1

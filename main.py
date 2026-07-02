@@ -35,8 +35,8 @@ def carregar_base_multitipologia_padrao():
 # =====================================================================
 def gerar_grafico_mercado(df_saneado, area_alvo, valor_estimado_m2):
     fig, ax = plt.subplots(figsize=(6, 3))
-    ax.scatter(df_saneado['area_privativa'], df_saneado['valor_unitario_m2'], color='#2B6CB0', alpha=0.7, label='Amostras')
-    ax.scatter(area_alvo, valor_estimado_m2, color='#E53E3E', marker='*', s=150, label='Avaliado')
+    ax.scatter(df_saneado['area_privativa'], df_saneado['valor_unitario_m2'], color='#2B6CB0', alpha=0.7)
+    ax.scatter(area_alvo, valor_estimado_m2, color='#E53E3E', marker='*', s=150)
     ax.set_title('Dispersao do Mercado', fontsize=10, fontweight='bold')
     ax.grid(True, linestyle='--', alpha=0.5)
     plt.tight_layout()
@@ -58,12 +58,13 @@ def gerar_laudo_pdf_ia(tenant, tipologia, area, valores, model_stats, status_jur
     subtitle_style = ParagraphStyle('T2', parent=styles['Heading2'], fontSize=12, textColor=colors.HexColor("#2B6CB0"), spaceAfter=8)
     text_style = ParagraphStyle('T3', parent=styles['Normal'], fontSize=9, leading=13, spaceAfter=6)
     
-    story.append(Paragraph(f"LAUDO TECNICO DE ENGENHARIA DE AVALIACOES POR IA", title_style))
+    story.append(Paragraph("LAUDO TECNICO DE ENGENHARIA DE AVALIACOES POR IA", title_style))
     story.append(Paragraph(f"<b>Instituicao Solicitante:</b> {tenant} | <b>Normativa:</b> ABNT NBR 14653-2", text_style))
     story.append(Spacer(1, 10))
     
     story.append(Paragraph("1. Escopo de Avaliacao Imobiliaria", subtitle_style))
-    t1 = Table([["Tipologia do Bem", tipologia, "Dimensao Principal", f"{area} m²"]], colWidths=[130, 110, 130, 130])
+    # RESOLUÇÃO: colWidths formatado como tupla numérica limpa de tamanho fixo
+    t1 = Table([["Tipologia do Bem", tipologia, "Dimensao Principal", f"{area} m²"]], colWidths=(130, 110, 130, 110))
     t1.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#F7FAFC")), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#E2E8F0")), ('PADDING', (0,0), (-1,-1), 5)]))
     story.append(t1)
     
@@ -73,7 +74,7 @@ def gerar_laudo_pdf_ia(tenant, tipologia, area, valores, model_stats, status_jur
         ["Margem Minima de Seguranca (Garantia LTV)", f"R$ {valores['v_min']:,.2f}"],
         ["Valor de Face Estimado (Media)", f"R$ {valores['v_medio']:,.2f}"],
         ["Limite de Mercado Maximo", f"R$ {valores['v_max']:,.2f}"]
-    ], colWidths=[250, 250])
+    ], colWidths=(240, 240))
     t2.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor("#2B6CB0")), ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E0")), ('PADDING', (0,0), (-1,-1), 5)]))
     story.append(t2)
     story.append(Spacer(1, 5))
@@ -84,7 +85,7 @@ def gerar_laudo_pdf_ia(tenant, tipologia, area, valores, model_stats, status_jur
     story.append(Spacer(1, 10))
     
     story.append(Paragraph("4. Status da Esteira de Risco Juridico", subtitle_style))
-    t3 = Table([["Status Documental", "APROVADO PARA GARANTIA" if status_juridico else "REPROVADO"], ["Grau de Risco Legal", score_juridico]], colWidths=[250, 250])
+    t3 = Table([["Status Documental", "APROVADO PARA GARANTIA" if status_juridico else "REPROVADO"], ["Grau de Risco Legal", score_juridico]], colWidths=(240, 240))
     t3.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E0")), ('PADDING', (0,0), (-1,-1), 5), ('TEXTCOLOR', (1,0), (1,0), colors.HexColor("#38A169") if status_juridico else colors.HexColor("#E53E3E"))]))
     story.append(t3)
     

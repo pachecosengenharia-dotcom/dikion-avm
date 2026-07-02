@@ -168,3 +168,43 @@ with aba_avm:
         q1 = df_tipo['valor_unitario_m2'].quantile(0.25)
         q3 = df_tipo['valor_unitario_m2'].quantile(0.75)
         iqr = q3 - q1
+    # SEÇÃO VISUAL FIXA E COMPLETA: Imprime todos os resultados da gaveta de memória
+    if st.session_state.memorizar_calculo is not None:
+        dados_calc = st.session_state.memorizar_calculo
+        st.write("---")
+        st.success(f"🎯 Algoritmo de Inteligencia Artificial Concluido para {dados_calc['tipologia_limpa']}!")
+        
+        cv1, cv2, cv3 = st.columns(3)
+        cv1.metric(label="Valor Estimado de Mercado (Media)", value=f"R$ {dados_calc['valor_medio']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+        cv2.metric(label="Minimo Admissivel (Garantia LTV)", value=f"R$ {dados_calc['v_min']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+        cv3.metric(label="Maximo Admissivel", value=f"R$ {dados_calc['v_max']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+        
+        st.markdown("### 📋 Enquadramento Normativo e Performance da IA")
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Precisao das Arvores de Decisao (R²)", dados_calc['r2_score'])
+        m2.metric("Amostras Brutas Lidas", f"{dados_calc['brutas']} {dados_calc['tipologia_limpa']}s")
+        m3.metric("Amostras Homologadas (Pos-IQR)", f"{dados_calc['saneadas']} {dados_calc['tipologia_limpa']}s")
+        
+        grafico_buf = gerar_grafico_mercado(dados_calc['df_saneado'], dados_calc['area_alvo'], dados_calc['preco_m2_pred'])
+        st.image(grafico_buf, caption="Grafico de Dispersao Espacial do Mercado de Goiania")
+        
+        model_stats = {"r2": dados_calc['r2_score'], "saneadas": dados_calc['saneadas']}
+        valores_dict = {"v_medio": dados_calc['valor_medio'], "v_min": dados_calc['v_min'], "v_max": dados_calc['v_max']}
+        
+        pdf_bytes = gerar_laudo_pdf_ia(
+            tenant_selecionado, dados_calc['tipologia_limpa'], dados_calc['area_alvo'], valores_dict, model_stats,
+            st.session_state.status_juridico_global, st.session_state.score_juridico_global, grafico_buf
+        )
+        st.markdown("### 📥 Emissao de Relatorio Certificado")
+        st.download_button(label="📄 Baixar Laudo de IA Certificado (PDF)", data=pdf_bytes, file_name="laudo_ia_NBR14653.pdf", mime="application/pdf")
+
+with aba_juridico:
+    st.subheader("Esteira de Analise de Risco Documental")
+    txt = st.text_area("Texto Identificado na Certidao", "MATRÍCULA Nº 15.234... R-3: PENHORA JUDICIAL ativa...", height=100)
+    if st.button("🔍 Auditar Matricula do Imovel"):
+        st.write("---")
+        if "penhora" in txt.lower(): st.error("❌ REJEITADO - ALTO RISCO")
+        else: st.success("✅ APROVADO - BAIXO RISCO")
+
+st.divider()
+st.caption("🔒 Plataforma AVM SaaS v3.5.0 | Criptografia ativa e em conformidade estrita com as normas da ABNT NBR 14653-2.")

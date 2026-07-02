@@ -180,4 +180,8 @@ with aba_avm:
         tipologia_limpa = tipologia_sel.replace("🏡 ", "").replace("🏢 ", "").replace("📐 ", "").replace("🏭 ", "").strip()
         df_local_processamento = df_global.copy()
         
-        if 'tipologia' in df_local_processamento.columns:
+        # Correct
+if 'tipologia' in df_local_processamento.columns:
+    # Everything here must be indented by 4 spaces
+    do_something()
+    another_action()

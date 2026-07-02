@@ -103,23 +103,36 @@ def gerar_laudo_pdf_ia(tenant, tipologia, area, valores, r2, n_amostras, status_
 # MOTOR DE IA (RANDOM FOREST)
 # =====================================================================
 def executar_motor_ia(df_global, tipologia, area, indice_fiscal, atributos):
+    # 1. Normalização dos nomes das colunas para evitar o KeyError
+    # Remove espaços, coloca em minúsculo e remove acentos
+    df_global.columns = [
+        c.lower().strip().replace(" ", "_")
+        .replace("á", "a").replace("í", "i").replace("é", "e")
+        .replace("ó", "o").replace("ã", "a").replace("ç", "c")
+        for c in df_global.columns
+    ]
+    
     df_tipo = df_global[df_global['tipologia'] == tipologia].copy()
     
-    # 1. Defina as colunas esperadas
+    # 2. Defina as colunas esperadas pelo modelo
     features = ['area_privativa', 'indice_fiscal', 'area_terreno', 'vagas_garagem', 'andar', 'pe_direito']
     
-    # 2. Verifique se todas as colunas existem no DataFrame
-    colunas_faltantes = [col for col in (features + ['valor_total_declarado']) if col not in df_tipo.columns]
-    
-    if colunas_faltantes:
-        return None, f"Erro: As seguintes colunas não foram encontradas na sua base: {', '.join(colunas_faltantes)}"
+    # 3. Validação de segurança
+    faltantes = [f for f in (features + ['valor_total_declarado']) if f not in df_tipo.columns]
+    if faltantes:
+        return None, f"Colunas ausentes no arquivo: {', '.join(faltantes)}. Verifique seu cabeçalho."
 
-    # 3. Prossiga apenas se estiver tudo certo
     if len(df_tipo) < 3:
-        return None, "Amostras insuficientes para esta tipologia na base carregada (mínimo 3)."
+        return None, "Amostras insuficientes (mínimo 3) para esta tipologia."
 
+    # Processamento seguro
     df_tipo = df_tipo.dropna(subset=features + ['valor_total_declarado'])
-   
+    
+    # ... (restante do código original)
+    X = df_tipo[features]
+    y = df_tipo['valor_total_declarado']
+    
+    # ... resto da lógica de predição
     X = df_tipo[features]
     y = df_tipo['valor_total_declarado']
 

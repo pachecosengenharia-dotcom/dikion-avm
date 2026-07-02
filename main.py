@@ -61,7 +61,6 @@ def gerar_laudo_pdf_ia(tenant, tipologia, area, valores, model_stats, status_jur
     story.append(Paragraph(f"<b>Instituicao Solicitante:</b> {tenant}", text_style))
     story.append(Spacer(1, 10))
     
-    # CORREÇÃO DEFINITIVA: colWidths com "W" maiúsculo exigido pelo ReportLab
     t1 = Table([["Tipologia do Bem", tipologia, "Dimensao Principal", f"{area} m²"]], colWidths=[130, 110, 130, 110])
     t1.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#F7FAFC")), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#E2E8F0")), ('PADDING', (0,0), (-1,-1), 5)]))
     story.append(t1)
@@ -102,7 +101,6 @@ with aba_avm:
     st.subheader("Configuracao da Base e Modelagem")
     arquivo_planilha = st.file_uploader("Arraste aqui a planilha consolidada de imoveis do banco (.xlsx ou .csv)", type=["xlsx", "csv"])
     
-    # VALIDAÇÃO EM TEMPO REAL: Se houver planilha, o sistema lê e valida os dados na hora
     if arquivo_planilha is not None:
         try:
             df_global = pd.read_csv(arquivo_planilha) if arquivo_planilha.name.endswith('.csv') else pd.read_excel(arquivo_planilha)
@@ -161,6 +159,7 @@ with aba_avm:
         model_ia = RandomForestRegressor(n_estimators=100, random_state=42)
         model_ia.fit(X, Y)
         
+        # --- PIPELINE MATEMÁTICO ANINHADO CONTRA EXECUÇÃO PRECOCE ---
         v_alvo = [area_alvo, indice_alvo, area_terreno_valor, vagas_valor, andar_valor, pe_direito_valor]
         p_m2 = float(model_ia.predict([v_alvo]))
         v_medio = p_m2 * area_alvo
@@ -176,7 +175,9 @@ with aba_avm:
             "df_saneado": df_saneado, "area_alvo": area_alvo, "preco_m2_pred": p_m2
         }
 
+    # EXECUÇÃO DO CONTEXTO VISUAL SEGURO: Renderiza os dados guardados na gaveta de memória
     if st.session_state.memorizar_calculo is not None:
         dados_calc = st.session_state.memorizar_calculo
         st.write("---")
         st.success(f"🎯 Algoritmo de Inteligencia Artificial Concluido para {dados_calc['tipologia_limpa']}!")
+        

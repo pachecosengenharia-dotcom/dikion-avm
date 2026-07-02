@@ -238,7 +238,7 @@ with sub_casa:
                 "atributos": {"area_terreno": terreno_casa, "vagas_garagem": quartos_casa - 1, "andar": 0, "pe_direito": 3.0},
             }
 
-    with sub_apto:
+with sub_apto:
         st.markdown("##### Parâmetros para Edificações Verticais")
         a1, a2, a3 = st.columns(3)
         area_apto = a1.number_input("Área Privativa do Apartamento (m²)", min_value=10.0, value=75.0, key="ap_a")
@@ -252,7 +252,7 @@ with sub_casa:
                 "atributos": {"area_terreno": 0, "vagas_garagem": vagas_apto, "andar": andar_apto, "pe_direito": 2.8},
             }
 
-    with sub_lote:
+with sub_lote:
         st.markdown("##### Parâmetros para Solos Nus / Lotes")
         l1, l2 = st.columns(2)
         area_lote = l1.number_input("Área Total do Lote (m²)", min_value=10.0, value=450.0, key="lo_a")
@@ -265,7 +265,7 @@ with sub_casa:
                 "atributos": {"area_terreno": area_lote, "vagas_garagem": 0, "andar": 0, "pe_direito": 0},
             }
 
-    with sub_galpao:
+with sub_galpao:
         st.markdown("##### Parâmetros para Galpões Industriais / Logísticos")
         g1, g2 = st.columns(2)
         area_galpao = g1.number_input("Área Construída do Galpão (m²)", min_value=50.0, value=600.0, key="ga_a")

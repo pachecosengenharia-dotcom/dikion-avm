@@ -4,86 +4,75 @@ import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 import io
 
-st.set_page_config(page_title="Plataforma AVM SaaS", page_icon="🏢", layout="wide")
+st.set_page_config(page_title="AVM SaaS Pro", layout="wide")
 
-# =====================================================================
-# LÓGICA DE MACHINE LEARNING
-# =====================================================================
-def treinar_e_prever(df, tipologia, area, indice, extras):
-    df_filtrado = df[df['tipologia'] == tipologia]
-    
-    # Features e Target
+# 1. Função de Base de Dados (Simulando uma carga de um banco de dados real)
+@st.cache_data
+def carregar_dados():
+    data = {
+        'valor_total_declarado': [450000, 480000, 510000, 350000, 380000, 420000, 150000, 210000],
+        'area_privativa': [75, 78, 80, 60, 62, 65, 350, 400],
+        'indice_fiscal': [1200, 1250, 1300, 1500, 1600, 1800, 800, 1100],
+        'area_terreno': [200, 220, 250, 0, 0, 0, 350, 400],
+        'vagas_garagem': [2, 2, 2, 1, 1, 2, 0, 0],
+        'andar': [0, 0, 0, 3, 5, 8, 0, 0],
+        'pe_direito': [3.0, 3.0, 3.2, 2.7, 2.7, 2.8, 0.0, 0.0],
+        'tipologia': ['CASA', 'CASA', 'CASA', 'APARTAMENTO', 'APARTAMENTO', 'APARTAMENTO', 'LOTE', 'LOTE']
+    }
+    return pd.DataFrame(data)
+
+# 2. Motor de IA
+def executar_modelo(df, tipologia, params):
+    df_f = df[df['tipologia'] == tipologia]
     features = ['area_privativa', 'indice_fiscal', 'area_terreno', 'vagas_garagem', 'andar', 'pe_direito']
-    X = df_filtrado[features]
-    y = df_filtrado['valor_total_declarado']
+    X = df_f[features]
+    y = df_f['valor_total_declarado']
     
-    model = RandomForestRegressor(n_estimators=100, random_state=42)
+    model = RandomForestRegressor(n_estimators=200, random_state=42)
     model.fit(X, y)
     
-    input_data = np.array([[area, indice, extras['area_terreno'], extras['vagas_garagem'], extras['andar'], extras['pe_direito']]])
-    valor_medio = model.predict(input_data)[0]
-    
-    return {
-        "v_min": valor_medio * 0.95,
-        "v_medio": valor_medio,
-        "v_max": valor_medio * 1.05
-    }, 0.92
+    input_df = pd.DataFrame([params], columns=features)
+    valor = model.predict(input_df)[0]
+    return valor
 
-# =====================================================================
-# GERADOR DE PDF
-# =====================================================================
-def gerar_laudo_pdf_ia(tenant, tipologia, area, valores, r2, n_amostras, status_juridico, score_juridico):
+# 3. Gerador de PDF (Com colunas definidas)
+def gerar_pdf(valores, tipologia):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter)
-    story = []
     styles = getSampleStyleSheet()
+    story = [Paragraph(f"Laudo Técnico - {tipologia}", styles['Heading1']), Spacer(1, 12)]
     
-    story.append(Paragraph(f"LAUDO CORE AVM - {tipologia}", styles['Heading1']))
-    story.append(Paragraph(f"Instituição: {tenant}", styles['Normal']))
-    story.append(Spacer(1, 12))
-    
-    # Tabela 1
-    t1 = Table([["Tipologia", tipologia, "Área", f"{area} m²"]], colWidths=[100, 150, 100, 100])
-    t1.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.black)]))
-    story.append(t1)
-    
-    # Tabela 2
-    data = [["Métrica", "Valor"], ["Mínimo", f"R$ {valores['v_min']:,.2f}"], ["Médio", f"R$ {valores['v_medio']:,.2f}"], ["Máximo", f"R$ {valores['v_max']:,.2f}"]]
-    t2 = Table(data, colWidths=[200, 200])
-    t2.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.black)]))
-    story.append(t2)
+    t_data = [["Metrica", "Valor"], ["Valor Estimado", f"R$ {valores:,.2f}"]]
+    t = Table(t_data, colWidths=[200, 200])
+    t.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 1, colors.black)]))
+    story.append(t)
     
     doc.build(story)
-    buffer.seek(0)
-    return buffer
+    return buffer.getvalue()
 
-# =====================================================================
-# INTERFACE
-# =====================================================================
-st.title("🏢 Painel de Crédito - AVM SaaS")
+# 4. Interface
+df = carregar_dados()
+st.title("Painel de Avaliação Imobiliária (AVM)")
 
-if 'executar_ia' not in st.session_state: st.session_state.executar_ia = False
+tipo = st.selectbox("Escolha a Tipologia", ["CASA", "APARTAMENTO", "LOTE"])
+col1, col2 = st.columns(2)
 
-# Dados base
-df_padrao = pd.DataFrame([
-    [450000, 6000, 75, 1200, 200, 2, 0, 3.0, "CASA"],
-    [350000, 5833, 60, 1500, 0, 1, 3, 2.7, "APARTAMENTO"]
-], columns=['valor_total_declarado', 'valor_unitario_m2', 'area_privativa', 'indice_fiscal', 'area_terreno', 'vagas_garagem', 'andar', 'pe_direito', 'tipologia'])
+# Inputs dinâmicos simplificados para o exemplo
+area = col1.number_input("Área Privativa", value=100.0)
+indice = col1.number_input("Índice Fiscal", value=1000.0)
+terreno = col2.number_input("Área Terreno", value=200.0)
+vagas = col2.number_input("Vagas", value=1)
+andar = col1.number_input("Andar", value=0)
+pdireito = col2.number_input("Pé Direito", value=2.8)
 
-sub_casa, sub_apto = st.tabs(["🏡 Casas", "🏢 Apartamentos"])
-
-with sub_casa:
-    area = st.number_input("Área (m²)", value=100.0, key="c_a")
-    if st.button("Calcular Casa"):
-        vals, r2 = treinar_e_prever(df_padrao, "CASA", area, 1200, {"area_terreno": 200, "vagas_garagem": 2, "andar": 0, "pe_direito": 3.0})
-        st.session_state.vals = vals
-        st.session_state.executar_ia = True
-        st.success(f"Valor Médio: R$ {vals['v_medio']:,.2f}")
-
-if st.session_state.executar_ia:
-    pdf = gerar_laudo_pdf_ia("Banco Alfa", "CASA", 100, st.session_state.vals, 0.92, 10, True, "A")
-    st.download_button("Baixar Laudo PDF", pdf, "laudo.pdf")
+if st.button("Calcular"):
+    params = [area, indice, terreno, vagas, andar, pdireito]
+    resultado = executar_modelo(df, tipo, params)
+    st.metric("Valor Estimado", f"R$ {resultado:,.2f}")
+    
+    pdf_bytes = gerar_pdf(resultado, tipo)
+    st.download_button("Baixar PDF", pdf_bytes, "laudo.pdf")

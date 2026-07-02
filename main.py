@@ -203,13 +203,12 @@ with aba_avm:
     st.write("---")
     st.markdown("#### 🎯 Selecione a Tipologia do Imóvel Alvo")
 
-    # Adicione isso logo após ler o arquivo
-     df_global.columns = [c.lower().strip().replace(" ", "_").replace("á", "a").replace("í", "i").replace("é", "e") 
+# Adicione isso logo após ler o arquivo
+df_global.columns = [c.lower().strip().replace(" ", "_").replace("á", "a").replace("í", "i").replace("é", "e") 
      for c in df_global.columns]
 
-      sub_casa, sub_apto, sub_lote, sub_galpao = st.tabs(["🏡 Casas", "🏢 Apartamentos", "📐 Lotes / Terrenos", "🏭 Galpões Comerciais"])
-     ^
-
+sub_casa, sub_apto, sub_lote, sub_galpao = st.tabs(["🏡 Casas", "🏢 Apartamentos", "📐 Lotes / Terrenos", "🏭 Galpões Comerciais"])
+     
 # Mapeamento: "Nome no seu Excel" : "Nome que o código espera"
             mapeamento = {
                 'Valor Total': 'valor_total_declarado',

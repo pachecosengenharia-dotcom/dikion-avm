@@ -101,7 +101,7 @@ aba_avm, aba_juridico = st.tabs(["📊 1. Avaliacao Estatistica por IA (AVM)", "
 
 # Inicialização segura de variáveis de estado
 if 'status_juridico_global' not in st.session_state: st.session_state.status_juridico_global = True
-if 'score_juridico_global' not in st.session_state: st.session_state.score_juridico_global = "PENDENTE"
+if 'score_juridico_global' not in st.session_state: st.session_state.score_juridico_global = "RISCO BAIXO"
 if 'memorizar_calculo' not in st.session_state: st.session_state.memorizar_calculo = None
 
 with aba_avm:
@@ -128,7 +128,7 @@ with aba_avm:
         df_global = carregar_base_multitipologia_padrao()
 
     st.write("---")
-    tipologia_sel = st.selectbox("🎯 Selecione a Tipologia do Imovel Alvo para Configuracao:", ["🏡 CASA", "🏢 APARTAMENTO", "📐 LOTE", "🏭 GALPAO"])
+    tipologia_sel = st.selectbox("🎯 Selecione a Tipologia do Imovel Alvo para Configuracao:", ["CASA", "APARTAMENTO", "GALPAO"])
     st.write("---")
     
     col1, col2 = st.columns(2)
@@ -136,75 +136,38 @@ with aba_avm:
     indice_alvo = col2.number_input("Indice Fiscal da Quadra", min_value=0.0, value=1200.0)
     
     area_terreno_valor, vagas_valor, andar_valor, pe_direito_valor = 0.0, 0, 0, 3.0
-    if "CASA" in tipologia_sel:
-        area_terreno_valor = col1.number_input("Area Total do Terreno (m²)", min_value=10.0, value=200.0)
-        vagas_valor = col2.slider("Quantidade de Quartos", 1, 6, 3)
-    elif "APARTAMENTO" in tipologia_sel:
-        andar_valor = col1.number_input("Numero do Andar", min_value=0, value=5)
-        vagas_valor = col2.slider("Vagas de Garagem", 0, 4, 1)
-        pe_direito_valor = 2.8
-    elif "GALPAO" in tipologia_sel:
-        pe_direito_valor = col1.number_input("Pe-direito Livre (Metros)", min_value=3.0, value=7.5)
-        area_terreno_valor = area_alvo * 1.5
+    
+    if tipologia_sel == "CASA":
+        area_terreno_valor = col1.number_input("Area do Terreno (m²)", min_value=0.0, value=200.0)
+        vagas_valor = col2.number_input("Vagas de Garagem", min_value=0, value=2)
+    elif tipologia_sel == "APARTAMENTO":
+        andar_valor = col1.number_input("Andar do Imovel", min_value=0, value=3)
+        vagas_valor = col2.number_input("Vagas de Garagem", min_value=0, value=1)
+    elif tipologia_sel == "GALPAO":
+        pe_direito_valor = col1.number_input("Pe Direito (m)", min_value=2.0, value=6.0)
 
     st.write("---")
     
-    # GATILHO COMPACTADO DO BOTÃO DE CÁLCULO
-    if st.button("🚀 Calcular Avaliacao por Inteligencia Artificial"):
-        tipologia_limpa = tipologia_sel.replace("🏡 ", "").replace("🏢 ", "").replace("📐 ", "").replace("🏭 ", "").strip()
-        df_local_processamento = df_global.copy()
+    if st.button("🚀 Executar Engenharia de Avaliacao (AVM)"):
+        # Filtrar o DataFrame de acordo com a tipologia alvo
+        df_filtrado = df_global[df_global['tipologia'] == tipologia_sel]
         
-        df_local_processamento['tipologia'] = df_local_processamento['tipologia'].astype(str).str.upper().str.strip() if 'tipologia' in df_local_processamento.columns else "CASA"
-        df_tipo = df_local_processamento[df_local_processamento['tipologia'] == tipologia_limpa].copy()
-        
-        if len(df_tipo) < 3:
-            df_backup = carregar_base_multitipologia_padrao()
-            df_tipo = df_backup[df_backup['tipologia'] == tipologia_limpa].copy()
+        if len(df_filtrado) < 3:
+            st.warning("Dados insuficientes para a tipologia selecionada na planilha. Usando dados padrão.")
+            df_filtrado = carregar_base_multitipologia_padrao()
+            df_filtrado = df_filtrado[df_filtrado['tipologia'] == tipologia_sel]
             
-        for col_nome in ['area_privativa', 'indice_fiscal', 'area_terreno', 'vagas_garagem', 'andares', 'pe_direito', 'valor_unitario_m2']:
-            if col_nome not in df_tipo.columns: df_tipo[col_nome] = 0.0
-            df_tipo[col_nome] = pd.to_numeric(df_tipo[col_nome], errors='coerce').fillna(0.0)
-            
-        q1 = df_tipo['valor_unitario_m2'].quantile(0.25)
-        q3 = df_tipo['valor_unitario_m2'].quantile(0.75)
-        iqr = q3 - q1
-    # SEÇÃO VISUAL FIXA E COMPLETA: Imprime todos os resultados da gaveta de memória
-    if st.session_state.memorizar_calculo is not None:
-        dados_calc = st.session_state.memorizar_calculo
-        st.write("---")
-        st.success(f"🎯 Algoritmo de Inteligencia Artificial Concluido para {dados_calc['tipologia_limpa']}!")
+        features = ['area_privativa', 'indice_fiscal', 'area_terreno', 'vagas_garagem', 'andares', 'pe_direito']
+        X = df_filtrado[features]
+        y = df_filtrado['valor_total_declarado']
         
-        cv1, cv2, cv3 = st.columns(3)
-        cv1.metric(label="Valor Estimado de Mercado (Media)", value=f"R$ {dados_calc['valor_medio']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-        cv2.metric(label="Minimo Admissivel (Garantia LTV)", value=f"R$ {dados_calc['v_min']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-        cv3.metric(label="Maximo Admissivel", value=f"R$ {dados_calc['v_max']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+        # Ajuste de segurança simples para evitar overfitting com poucas amostras
+        n_estimators = min(50, max(10, len(df_filtrado) * 5))
+        model = RandomForestRegressor(n_estimators=n_estimators, random_state=42)
+        model.fit(X, y)
         
-        st.markdown("### 📋 Enquadramento Normativo e Performance da IA")
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Precisao das Arvores de Decisao (R²)", dados_calc['r2_score'])
-        m2.metric("Amostras Brutas Lidas", f"{dados_calc['brutas']} {dados_calc['tipologia_limpa']}s")
-        m3.metric("Amostras Homologadas (Pos-IQR)", f"{dados_calc['saneadas']} {dados_calc['tipologia_limpa']}s")
+        # Predição com o vetor alvo informado
+        vetor_alvo = np.array([[area_alvo, indice_alvo, area_terreno_valor, vagas_valor, andar_valor, pe_direito_valor]])
+        valor_predito = float(model.predict(vetor_alvo)[0])
+        valor_m2_predito = valor_predito / area_alvo
         
-        grafico_buf = gerar_grafico_mercado(dados_calc['df_saneado'], dados_calc['area_alvo'], dados_calc['preco_m2_pred'])
-        st.image(grafico_buf, caption="Grafico de Dispersao Espacial do Mercado de Goiania")
-        
-        model_stats = {"r2": dados_calc['r2_score'], "saneadas": dados_calc['saneadas']}
-        valores_dict = {"v_medio": dados_calc['valor_medio'], "v_min": dados_calc['v_min'], "v_max": dados_calc['v_max']}
-        
-        pdf_bytes = gerar_laudo_pdf_ia(
-            tenant_selecionado, dados_calc['tipologia_limpa'], dados_calc['area_alvo'], valores_dict, model_stats,
-            st.session_state.status_juridico_global, st.session_state.score_juridico_global, grafico_buf
-        )
-        st.markdown("### 📥 Emissao de Relatorio Certificado")
-        st.download_button(label="📄 Baixar Laudo de IA Certificado (PDF)", data=pdf_bytes, file_name="laudo_ia_NBR14653.pdf", mime="application/pdf")
-
-with aba_juridico:
-    st.subheader("Esteira de Analise de Risco Documental")
-    txt = st.text_area("Texto Identificado na Certidao", "MATRÍCULA Nº 15.234... R-3: PENHORA JUDICIAL ativa...", height=100)
-    if st.button("🔍 Auditar Matricula do Imovel"):
-        st.write("---")
-        if "penhora" in txt.lower(): st.error("❌ REJEITADO - ALTO RISCO")
-        else: st.success("✅ APROVADO - BAIXO RISCO")
-
-st.divider()
-st.caption("🔒 Plataforma AVM SaaS v3.5.0 | Criptografia ativa e em conformidade estrita com as normas da ABNT NBR 14653-2.")

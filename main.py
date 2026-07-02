@@ -180,5 +180,5 @@ with aba_avm:
         tipologia_limpa = tipologia_sel.replace("🏡 ", "").replace("🏢 ", "").replace("📐 ", "").replace("🏭 ", "").strip()
         df_local_processamento = df_global.copy()
         
-    if 'tipologia' in df_local_processamento.columns:
+       if 'tipologia' in df_local_processamento.columns:
     pass

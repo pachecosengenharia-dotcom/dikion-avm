@@ -234,8 +234,8 @@ with aba_avm:
         
 
 # Adicione isso logo após ler o arquivo
-              df_global.columns = [c.lower().strip().replace(" ", "_").replace("á", "a").replace("í", "i").replace("é", "e") 
-for c in df_global.columns]
+            df_global.columns = [c.lower().strip().replace(" ", "_").replace("á", "a").replace("í", "i").replace("é", "e") 
+            for c in df_global.columns]
 
 sub_casa, sub_apto, sub_lote, sub_galpao = st.tabs(["🏡 Casas", "🏢 Apartamentos", "📐 Lotes / Terrenos", "🏭 Galpões Comerciais"])
      

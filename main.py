@@ -9,66 +9,62 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 
-st.set_page_config(page_title="AVM SaaS Pro", layout="wide")
+# 1. SETUP DA PÁGINA
+st.set_page_config(page_title="AVM SaaS", layout="wide")
 
-# =====================================================================
-# FUNÇÕES DE LÓGICA E PDF
-# =====================================================================
+# 2. FUNÇÕES DE SUPORTE
 def treinar_e_prever(df, tipologia, params):
+    # Filtro e limpeza
     df['tipologia'] = df['tipologia'].astype(str).str.upper().str.strip()
     df_f = df[df['tipologia'] == tipologia].copy()
     
-    if len(df_f) < 2: return None, None, "Dados insuficientes."
-    
     features = ['area_privativa', 'indice_fiscal', 'area_terreno', 'vagas_garagem', 'andar', 'pe_direito']
-    X = df_f[features]; y = df_f['valor_total_declarado']
+    X = df_f[features]
+    y = df_f['valor_total_declarado']
     
     model = RandomForestRegressor(n_estimators=100, random_state=42)
     model.fit(X, y)
     
-    imp = pd.DataFrame({'feature': features, 'importancia': model.feature_importances_}).sort_values('importancia')
+    # Importância para o gráfico
+    importancia = pd.DataFrame({'feature': features, 'importancia': model.feature_importances_}).sort_values('importancia')
     valor = model.predict(np.array([params]))[0]
-    return valor, imp, None
+    return valor, importancia
 
-def gerar_pdf(tenant, tipologia, valor, juridico, img_buffer):
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter)
-    styles = getSampleStyleSheet()
-    story = [Paragraph(f"Laudo AVM - {tenant}", styles['Title']), Spacer(1, 12)]
+# 3. INTERFACE E CARGA DE DADOS
+st.sidebar.header("⚙️ Configurações")
+tenant = st.sidebar.selectbox("Cliente", ["Banco Alfa", "Imobiliária Beta"])
+uploaded_file = st.sidebar.file_uploader("Upload Base (.csv ou .xlsx)", type=["csv", "xlsx"])
+
+# Inicializa base (Demo ou Upload)
+if uploaded_file:
+    df = pd.read_excel(uploaded_file) if uploaded_file.name.endswith('.xlsx') else pd.read_csv(uploaded_file)
+else:
+    df = pd.DataFrame({
+        'valor_total_declarado': [500000, 350000], 'area_privativa': [100, 60], 
+        'indice_fiscal': [1000, 1500], 'area_terreno': [200, 0], 
+        'vagas_garagem': [2, 1], 'andar': [0, 3], 'pe_direito': [2.8, 2.7], 
+        'tipologia': ['CASA', 'APARTAMENTO']
+    })
+
+# 4. ABAS E INPUTS
+tab1, tab2 = st.tabs(["📊 Avaliação", "⚖️ Jurídico"])
+
+with tab1:
+    tipo = st.selectbox("Tipologia", ["CASA", "APARTAMENTO", "LOTE"])
+    col1, col2 = st.columns(2)
+    p = [col1.number_input("Área (m²)", 100.0), col2.number_input("Índice", 1000.0), 
+         col1.number_input("Terreno", 200.0), col2.number_input("Vagas", 2.0), 
+         col1.number_input("Andar", 0.0), col2.number_input("Pé Direito", 2.8)]
     
-    data = [["Item", "Detalhe"], ["Tipologia", tipologia], ["Valor Estimado", f"R$ {valor:,.2f}"], ["Status", juridico]]
-    t = Table(data, colWidths=[200, 200])
-    t.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 1, colors.black)]))
-    story.append(t); story.append(Spacer(1, 20))
-    
-    # Inserção do Gráfico
-    story.append(Paragraph("Importância das Variáveis:", styles['Heading2']))
-    story.append(Image(img_buffer, width=400, height=200))
-    
-    doc.build(story)
-    return buffer.getvalue()
+    if st.button("Executar Precificação"):
+        valor, imp = treinar_e_prever(df, tipo, p)
+        st.session_state.res = valor
+        st.session_state.imp = imp
+        st.session_state.tipo = tipo
 
-# =====================================================================
-# INTERFACE
-# =====================================================================
-st.title("📊 AVM SaaS - Avaliação Inteligente")
-# [Carga de Dados omitida para brevidade - utilize o mesmo carregador anterior]
-# ...
-
-if st.button("Executar Precificação"):
-    resultado, imp_df, erro = treinar_e_prever(df, tipo, params)
-    if not erro:
-        st.metric("Valor Estimado", f"R$ {resultado:,.2f}")
-        
-        # Gerar Gráfico no Buffer
-        fig, ax = plt.subplots(figsize=(6, 3))
-        ax.barh(imp_df['feature'], imp_df['importancia'], color='#2B6CB0')
-        img_buffer = io.BytesIO()
-        plt.savefig(img_buffer, format='png'); img_buffer.seek(0)
-        st.pyplot(fig)
-        
-        st.session_state.res = resultado; st.session_state.tipo = tipo; st.session_state.img = img_buffer
-
-if 'res' in st.session_state and st.button("Gerar PDF"):
-    pdf = gerar_pdf(tenant, st.session_state.tipo, st.session_state.res, "APROVADO", st.session_state.img)
-    st.download_button("📥 Baixar Laudo com Gráfico", pdf, "laudo_final.pdf")
+# 5. EXIBIÇÃO DE RESULTADOS
+if 'res' in st.session_state:
+    st.metric("Valor Estimado", f"R$ {st.session_state.res:,.2f}")
+    fig, ax = plt.subplots()
+    ax.barh(st.session_state.imp['feature'], st.session_state.imp['importancia'])
+    st.pyplot(fig)

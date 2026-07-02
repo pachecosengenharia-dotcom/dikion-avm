@@ -68,7 +68,7 @@ st.title("🏢 Painel de Crédito e Controle Multi-Tenant - Inteligência Artifi
 
 st.markdown("Gestão automatizada de risco imobiliário horizontal, vertical e industrial.")
 
-st.hr()
+st.divider()
 
 
 

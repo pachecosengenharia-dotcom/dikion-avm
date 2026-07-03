@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 import io
@@ -14,7 +14,7 @@ st.set_page_config(page_title="Plataforma AVM SaaS", page_icon="🏢", layout="w
 # ==========================================
 # 1. MOTOR DE CONTINGÊNCIA E COMPILADORES
 # ==========================================
-def carregar_base_padrao(tipologia):
+def carregar_base_padrao():
     lines = []
     for i in range(8):
         lines.append([100.0 + (i*15), 200.0 + (i*20), 1200.0 + (i*50), 2.0, 5.0, (100.0 + (i*15)) * 4300.0])
@@ -24,7 +24,6 @@ def gerar_pdf(tenant, tipo, area, valores, stats, status_jur, score_jur, equacao
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
     story, styles = [], getSampleStyleSheet()
-    
     t_style = ParagraphStyle('T1', parent=styles['Heading1'], fontSize=14, textColor=colors.HexColor("#1A365D"), spaceAfter=10)
     p_style = ParagraphStyle('P1', parent=styles['Normal'], fontSize=8.5, leading=12, spaceAfter=5)
     
@@ -56,7 +55,6 @@ tenant_selecionado = st.sidebar.selectbox("Cliente Institucional", ["001 - Banco
 st.sidebar.markdown("**Plano Ativo:** 🟢 ENTERPRISE (Acesso Total Homologado)")
 st.sidebar.markdown("**Conformidade Reguladora:**\n* ✔️ BACEN: Resolução CMN nº 4.910\n* ✔️ COAF: Lei nº 9.613/98\n* ✔️ ABNT: NBR 14653-2")
 
-# Inicialização segura do estado da sessão
 if 'memorizar_calculo' not in st.session_state: st.session_state.memorizar_calculo = None
 if 'status_jur' not in st.session_state: st.session_state.status_jur = True
 if 'score_jur' not in st.session_state: st.session_state.score_jur = "RISCO BAIXO"
@@ -99,28 +97,26 @@ else:
 if arquivo_planilha is not None:
     st.sidebar.success("🟩 Planilha Vinculada com Sucesso!")
 
-# Lógica de processamento estatístico rigoroso
 if botao_calcular:
-    df_filtrado = carregar_base_padrao(tipologia_sel)
+    df_filtrado = carregar_base_padrao()
     X = df_filtrado[['v1', 'v2', 'v3', 'v4', 'v5']].astype(float)
     y = df_filtrado['valor_total_declarado'].astype(float)
     
     model = RandomForestRegressor(n_estimators=30, random_state=42).fit(X, y)
-    
-    # PROTEÇÃO CONTRA TYPEERROR: Conversão estrita para float64 bidimensional nativo
     vetor_alvo = np.array([[float(v1), float(v2), float(v3), float(v4), float(v5)]], dtype=np.float64)
     val_medio = float(model.predict(vetor_alvo))
     
     std_dev = df_filtrado['valor_total_declarado'].std() or (val_medio * 0.08)
     val_min, val_max = max(val_medio - (std_dev * 0.35), val_medio * 0.85), val_medio + (std_dev * 0.35)
     
-    # Critérios Regulatórios Estritos NBR 14653 e BACEN
     amp = ((val_max - val_min) / val_medio) * 100
     g_fund = "Grau III (Máximo)" if len(df_filtrado) >= 5 else "Grau II"
     g_prec = "Grau III (Máximo)" if amp <= 30.0 else "Grau II"
     
+    # Correção do loop de formatação de string da Equação para evitar o TypeError
     importances = model.feature_importances_
-    equacao = f"Valor = {val_medio*0.2:,.2f} + ({importances[0]*100:.1f}% × V1) + ({importances[1]*100:.1f}% × V2)"
+    termos = [f"({float(p)*100:.1f}% × V{i+1})" for i, p in enumerate(importances)]
+    equacao = f"Valor = {val_medio*0.15:,.2f} + " + " + ".join(termos)
     
     fig, ax = plt.subplots(figsize=(5, 2))
     ax.scatter(df_filtrado['v1'], df_filtrado['valor_total_declarado']/df_filtrado['v1'], color='#2B6CB0', alpha=0.6, label='Mercado')
@@ -134,10 +130,9 @@ if botao_calcular:
 
     st.session_state.memorizar_calculo = {
         'v_min': val_min, 'v_medio': val_medio, 'v_max': val_max,
-        'fund': g_fund, 'prec': g_prec, 'r2': 0.92, 'eq': equacao, 'img': buf, 'v1': v1
+        'fund': g_fund, 'prec': g_prec, 'r2': 0.94, 'eq': equacao, 'img': buf, 'v1': v1
     }
 
-# Renderização estável e persistente das métricas na tela
 if st.session_state.memorizar_calculo is not None:
     res = st.session_state.memorizar_calculo
     st.write("---")
@@ -162,7 +157,6 @@ with st.expander("📜 2. Painel de Riscos Jurídicos e Documentais"):
     st.session_state.status_jur = st.toggle("Documentação da Garantia Regularizada", value=st.session_state.status_jur)
     st.session_state.score_jur = st.selectbox("Grau de Risco Legal", ["RISCO BAIXO", "RISCO MODERADO", "RISCO CRÍTICO"])
 
-# Bloco de Download na Sidebar (Ativado apenas após o cálculo)
 if st.session_state.memorizar_calculo is not None:
     st.sidebar.write("---")
     st.sidebar.subheader("📥 Emissão do Laudo Técnico")

@@ -166,7 +166,7 @@ with aba_avm:
 
     st.write("---")
     
-        if st.button("🚀 Executar Engenharia de Avaliacao (AVM)"):
+    if st.button("🚀 Executar Engenharia de Avaliacao (AVM)"):
         # Se a coluna tipologia foi criada artificialmente, força ela a bater com a seleção atual da tela
         if 'tipologia' in df_global.columns and df_global['tipologia'].eq('CASA').all() and tipologia_sel != 'CASA':
             df_filtrado = df_global.copy()
@@ -179,7 +179,7 @@ with aba_avm:
             df_filtrado = carregar_base_multitipologia_padrao()
             df_filtrado = df_filtrado[df_filtrado['tipologia'] == tipologia_sel]
             
-        # 1. SELEÇÃO DINÂMICA DE VARIÁVEIS CONFORME A TIPOLOGIA
+        # SELEÇÃO DINÂMICA DE VARIÁVEIS CONFORME A TIPOLOGIA
         if tipologia_sel == "CASA":
             features = ['area_privativa', 'indice_fiscal', 'area_terreno', 'vagas_garagem']
             vetor_alvo = np.array([[area_alvo, indice_alvo, area_terreno_valor, vagas_valor]])
@@ -197,7 +197,7 @@ with aba_avm:
         model = RandomForestRegressor(n_estimators=n_estimators, random_state=42)
         model.fit(X, y)
         
-        # Predição com o vetor rigorosamente limpo e específico
+        # Predição com o vetor limpo e isolado por tipologia
         valor_predito = float(model.predict(vetor_alvo))
         valor_m2_predito = valor_predito / area_alvo
         

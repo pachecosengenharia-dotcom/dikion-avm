@@ -157,12 +157,12 @@ with aba_avm:
     
     if tipologia_sel == "CASA":
         area_terreno_valor = col1.number_input("Area do Terreno (m²)", min_value=0.0, value=200.0)
-        vagas_valor = col2.number_input("Vagas de Garagem", min_value=0, value=2)
     elif tipologia_sel == "APARTAMENTO":
         andar_valor = col1.number_input("Andar do Imovel", min_value=0, value=3)
         vagas_valor = col2.number_input("Vagas de Garagem", min_value=0, value=1)
     elif tipologia_sel == "GALPAO":
         pe_direito_valor = col1.number_input("Pe Direito (m)", min_value=2.0, value=6.0)
+        area_terreno_valor = col2.number_input("Area do Terreno (m²)", min_value=0.0, value=500.0)
 
     st.write("---")
     
@@ -179,11 +179,13 @@ with aba_avm:
             df_filtrado = carregar_base_multitipologia_padrao()
             df_filtrado = df_filtrado[df_filtrado['tipologia'] == tipologia_sel]
             
-        # SELEÇÃO DINÂMICA DE VARIÁVEIS CONFORME A TIPOLOGIA
+        # SELEÇÃO DINÂMICA RIGOROSA DE VARIÁVEIS CONFORME A TIPOLOGIA
         if tipologia_sel == "CASA":
-            features = ['area_privativa', 'indice_fiscal', 'area_terreno', 'vagas_garagem']
-            vetor_alvo = np.array([[area_alvo, indice_alvo, area_terreno_valor, vagas_valor]])
+            # Removido 'vagas_garagem' completamente desta tipologia
+            features = ['area_privativa', 'indice_fiscal', 'area_terreno']
+            vetor_alvo = np.array([[area_alvo, indice_alvo, area_terreno_valor]])
         elif tipologia_sel == "APARTAMENTO":
+            # Única tipologia que processa as vagas de garagem do imóvel
             features = ['area_privativa', 'indice_fiscal', 'andares', 'vagas_garagem']
             vetor_alvo = np.array([[area_alvo, indice_alvo, andar_valor, vagas_valor]])
         else: # GALPAO
@@ -197,7 +199,7 @@ with aba_avm:
         model = RandomForestRegressor(n_estimators=n_estimators, random_state=42)
         model.fit(X, y)
         
-        # Predição com o vetor limpo e isolado por tipologia
+        # Predição com o formato exato da tipologia
         valor_predito = float(model.predict(vetor_alvo))
         valor_m2_predito = valor_predito / area_alvo
         

@@ -11,6 +11,11 @@ import matplotlib.pyplot as plt
 
 st.set_page_config(page_title="Plataforma AVM SaaS", page_icon="🏢", layout="wide")
 
+# Inicialização segura de estados no topo absoluto para evitar loops de recarregamento
+if 'memorizar_calculo' not in st.session_state: st.session_state.memorizar_calculo = None
+if 'status_jur' not in st.session_state: st.session_state.status_jur = True
+if 'score_jur' not in st.session_state: st.session_state.score_jur = "RISCO BAIXO"
+
 # ==========================================
 # 1. MOTOR DE CONTINGÊNCIA E GERADORES
 # ==========================================
@@ -57,11 +62,7 @@ st.sidebar.header("🔑 Identificação do Contratante")
 tenant_selecionado = st.sidebar.selectbox("Cliente Institucional", ["001 - Banco Alfa S.A.", "002 - Imobiliária Local Ltda"])
 st.sidebar.markdown("**Plano Ativo:** 🟢 ENTERPRISE\n\n**Conformidade:**\n* BACEN CMN 4.910\n* ABNT NBR 14653-2")
 
-if 'memorizar_calculo' not in st.session_state: st.session_state.memorizar_calculo = None
-if 'status_jur' not in st.session_state: st.session_state.status_jur = True
-if 'score_jur' not in st.session_state: st.session_state.score_jur = "RISCO BAIXO"
-
-# Inicialização de segurança para evitar o erro de variáveis inexistentes no carregamento inicial
+# Inicialização de variáveis locais
 v1, v2, v3, v4, v5 = None, None, None, None, None
 
 tipologia_sel = st.selectbox("🎯 Selecione a Tipologia do Imóvel Alvo:", ["CASA", "APARTAMENTO", "LOTE", "GALPAO"])
@@ -101,7 +102,7 @@ else:
     v4 = m_acab[col1.selectbox("Padrão de Acabamento", list(m_acab.keys()), index=1, key="g4")]
     v5 = col2.number_input("Idade Aparente (Anos)", min_value=0.0, value=10.0, key="g5")
 
-# TRAVA DE SEGURANÇA MÁXIMA: Os cálculos matemáticos agora só executam estritamente após o clique do botão
+# Lógica computacional protegida contra carregamentos parciais da página
 if botao_calcular and v1 is not None:
     df_filtrado = carregar_base_padrao()
     X = df_filtrado[['v1', 'v2', 'v3', 'v4', 'v5']].values.astype(np.float64)
@@ -118,8 +119,11 @@ if botao_calcular and v1 is not None:
     g_fund = "Grau III" if len(df_filtrado) >= 5 else "Grau II"
     g_prec = "Grau III" if amp <= 30.0 else "Grau II"
     
+    # SOLUÇÃO DEFINITIVA DO BUG DE TIPO: Iteração explícita sobre o array para compor a string com segurança
     imp = model.feature_importances_
-    equacao = f"Valor = {val_medio*0.15:,.2f} + ({imp[0]*100:.1f}%×V1) + ({imp[1]*100:.1f}%×V2) + ({imp[2]*100:.1f}%×V3)"
+    termos_string = " + ".join([f"({float(p)*100:.1f}% × V{i+1})" for i, p in enumerate(imp)])
+    equacao = f"Valor = {val_medio*0.15:,.2f} + " + termos_string
+    
     buf_graficos = gerar_graficos_diagnostico(y, model.predict(X))
 
     st.session_state.memorizar_calculo = {
@@ -127,7 +131,7 @@ if botao_calcular and v1 is not None:
         'fund': g_fund, 'prec': g_prec, 'r2': 0.94, 'eq': equacao, 'img': buf_graficos, 'v1': float(v1)
     }
 
-# Exibição segura e estável das informações em tela
+# Exibição contínua dos dados processados na tela
 if st.session_state.memorizar_calculo is not None:
     res = st.session_state.memorizar_calculo
     st.write("---")

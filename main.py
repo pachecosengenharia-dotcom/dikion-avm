@@ -5,16 +5,20 @@ from sklearn.ensemble import RandomForestRegressor
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib import colors
 import io
 import matplotlib.pyplot as plt
 
 st.set_page_config(page_title="Plataforma AVM SaaS", page_icon="🏢", layout="wide")
 
+# ==========================================
+# 1. MOTOR DE CONTINGÊNCIA E GERADORES
+# ==========================================
 def carregar_base_padrao():
     lines = [[100.0 + (i*15), 200.0 + (i*20), 1200.0 + (i*50), 2.0, 5.0, (100.0 + (i*15)) * 4300.0] for i in range(12)]
     return pd.DataFrame(lines, columns=['v1', 'v2', 'v3', 'v4', 'v5', 'valor_total_declarado'])
 
-def gerar_graficos_diagnostico(y_real, y_pred, v1_alvo, val_medio):
+def gerar_graficos_diagnostico(y_real, y_pred):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 2.5))
     ax1.scatter(y_real, y_pred, color='#2B6CB0', alpha=0.7, edgecolors='k')
     ax1.plot([y_real.min(), y_real.max()], [y_real.min(), y_real.max()], 'r--', lw=1.5)
@@ -94,6 +98,9 @@ else:
     v4 = m_acab[col1.selectbox("Padrão de Acabamento", list(m_acab.keys()), index=1, key="g4")]
     v5 = col2.number_input("Idade Aparente (Anos)", min_value=0.0, value=10.0, key="g5")
 
+# ----------------------------------------------------------------------
+# SOLUÇÃO DO BUG: TODA A LOGICA FOI ISOLADA RIGOROSAMENTE DENTRO DO IF
+# ----------------------------------------------------------------------
 if botao_calcular:
     df_filtrado = carregar_base_padrao()
     X = df_filtrado[['v1', 'v2', 'v3', 'v4', 'v5']].values.astype(np.float64)
@@ -110,16 +117,16 @@ if botao_calcular:
     g_fund = "Grau III" if len(df_filtrado) >= 5 else "Grau II"
     g_prec = "Grau III" if amp <= 30.0 else "Grau II"
     
-    # FIX DE SINTAXE: Indexação individual do vetor de importância para evitar conflitos de string
     imp = model.feature_importances_
     equacao = f"Valor = {val_medio*0.15:,.2f} + ({imp[0]*100:.1f}%×V1) + ({imp[1]*100:.1f}%×V2) + ({imp[2]*100:.1f}%×V3)"
-    buf_graficos = gerar_graficos_diagnostico(y, model.predict(X), float(v1), val_medio)
+    buf_graficos = gerar_graficos_diagnostico(y, model.predict(X))
 
     st.session_state.memorizar_calculo = {
         'v_min': val_min, 'v_medio': val_medio, 'v_max': val_max,
         'fund': g_fund, 'prec': g_prec, 'r2': 0.94, 'eq': equacao, 'img': buf_graficos, 'v1': float(v1)
     }
 
+# Renderização estável dos resultados coletados em tela
 if st.session_state.memorizar_calculo is not None:
     res = st.session_state.memorizar_calculo
     st.write("---")

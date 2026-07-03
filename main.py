@@ -20,31 +20,27 @@ def carregar_base_multitipologia_padrao():
     """Garante amostras base para treinamento caso o usuário não envie uma planilha."""
     dados = []
     for i in range(8):
-        dados.append((300000.0 + (i*50000), 5000.0, 100.0 + (i*15), 1100.0 + (i*50), 180.0 + (i*20), 2.0, 1.0, "CASA"))
-        dados.append((250000.0 + (i*40000), 5500.0, 70.0 + (i*10), 1400.0 + (i*40), 2.0, 2.0, 1.0, "APARTAMENTO"))
-        dados.append((150000.0 + (i*30000), 1000.0, 300.0 + (i*30), 2.0, 2026.0, 12.0, 1.0, "LOTE"))
-        dados.append((900000.0 + (i*100000), 2200.0, 450.0 + (i*50), 950.0 + (i*1000), 6.0, 8.0, 2.0, "GALPAO"))
-    return pd.DataFrame(dados, columns=['valor_total_declarado', 'valor_unitario_m2', 'v1', 'v2', 'v3', 'v4', 'v5', 'tipologia'])
+        dados.append((300000.0 + (i*50000), 100.0 + (i*15), 1100.0 + (i*50), 180.0 + (i*20), 2.0, 1.0, "CASA"))
+        dados.append((250000.0 + (i*40000), 70.0 + (i*10), 1400.0 + (i*40), 2.0, 2.0, 1.0, "APARTAMENTO"))
+        dados.append((150000.0 + (i*30000), 300.0 + (i*30), 2.0, 2026.0, 12.0, 1.0, "LOTE"))
+        dados.append((900000.0 + (i*100000), 450.0 + (i*50), 950.0 + (i*1000), 6.0, 8.0, 2.0, "GALPAO"))
+    return pd.DataFrame(dados, columns=['valor_total_declarado', 'v1', 'v2', 'v3', 'v4', 'v5', 'tipologia'])
 
-def gerar_grafico_mercado(df_saneado, area_alvo, valor_estimado_m2):
-    """Gera gráfico de dispersão mercadológica para o laudo e tela."""
-    fig, ax = plt.subplots(figsize=(6, 3))
-    ax.scatter(df_saneado['v1'], df_saneado['valor_unitario_m2'], color='#2B6CB0', alpha=0.7, label='Amostras')
-    ax.scatter(area_alvo, valor_estimado_m2, color='#E53E3E', marker='*', s=200, label='Avaliado')
-    ax.set_title('Dispersão do Mercado (Área Principal vs Preço m²)', fontsize=10, fontweight='bold', color='#1A365D')
-    ax.set_xlabel('Dimensão / Área Principal', fontsize=8)
-    ax.set_ylabel('Preço Unitário (R$/m²)', fontsize=8)
-    ax.grid(True, linestyle='--', alpha=0.5)
-    ax.legend(fontsize=7, loc='best')
+def gerar_grafico_pdf(df_saneado, area_alvo, valor_estimado_m2):
+    """Gera o buffer do gráfico estático EXCLUSIVAMENTE para ser impresso dentro do PDF."""
+    fig, ax = plt.subplots(figsize=(5, 2.5))
+    ax.scatter(df_saneado['v1'], df_saneado['valor_total_declarado']/df_saneado['v1'], color='#2B6CB0', alpha=0.7)
+    ax.scatter(area_alvo, valor_estimado_m2, color='#E53E3E', marker='*', s=150)
+    ax.set_title('Dispersao do Mercado', fontsize=9, fontweight='bold', color='#1A365D')
     plt.tight_layout()
     img_buf = io.BytesIO()
-    plt.savefig(img_buf, format='png', dpi=200)
+    plt.savefig(img_buf, format='png', dpi=150)
     img_buf.seek(0)
     plt.close(fig)
     return img_buf
 
 def gerar_laudo_pdf_ia(tenant, tipologia, area, valores, model_stats, status_juridico, score_juridico, grafico_buf, equacao):
-    """Compila o relatório final em PDF utilizando ReportLab."""
+    """Compila o relatório corporativo final em PDF utilizando ReportLab."""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40.0, leftMargin=40.0, topMargin=40.0, bottomMargin=40.0)
     story = []
@@ -109,16 +105,13 @@ st.sidebar.markdown("**Plano Ativo:** 🟢 ENTERPRISE")
 
 aba_avm, aba_juridico = st.tabs(["📊 1. Avaliação Estatística por IA (AVM)", "📜 2. Análise Jurídica de Risco"])
 
-# Estruturação e retenção das chaves de estado de sessão
 if 'status_juridico_global' not in st.session_state: st.session_state.status_juridico_global = True
 if 'score_juridico_global' not in st.session_state: st.session_state.score_juridico_global = "RISCO BAIXO"
 if 'memorizar_calculo' not in st.session_state: st.session_state.memorizar_calculo = None
 
 with aba_avm:
-    # 1. Configuração de Variáveis de Tipologia
     tipologia_sel = st.selectbox("🎯 Selecione a Tipologia do Imóvel Alvo:", ["CASA", "APARTAMENTO", "LOTE", "GALPAO"])
     
-    # 2. Upload e Validação Imediata da Planilha
     arquivo_planilha = st.file_uploader("Arraste aqui a planilha de imóveis comparáveis (.xlsx ou .csv) [Opcional]", type=["xlsx", "csv"])
     
     df_global = carregar_base_multitipologia_padrao()
@@ -136,8 +129,6 @@ with aba_avm:
             st.success(f"🟩 PLANILHA VALIDADA COM SUCESSO: {len(df_global)} registros acoplados e prontos!")
         except Exception as e:
             st.error(f"Erro na estruturação da planilha: {e}")
-    else:
-        st.info("💡 Utilizando banco de dados sintético operacional padrão (Pronto para Uso).")
 
     st.write("---")
     st.markdown("##### 📌 Atributos Específicos do Imóvel (Exatamente 5 Variáveis)")
@@ -164,3 +155,10 @@ with aba_avm:
         v4_txt = col1.selectbox("Estado de Conservação", list(map_conservacao.keys()), index=1, key="ap_v4")
         v5_txt = col2.selectbox("Padrão de Acabamento", list(map_acabamento.keys()), index=1, key="ap_v5")
         v4 = map_conservacao[v4_txt]
+        v5 = map_acabamento[v5_txt]
+        features_lista = ['area_privativa', 'indice_fiscal', 'vagas_garagem', 'estado_conservacao', 'padrao_acabamento']
+
+    elif tipologia_sel == "LOTE":
+        v1 = col1.number_input("Área do Terreno (m²)", min_value=10.0, value=360.0, key="lote_v1")
+        v2_txt = col2.selectbox("Topografia", list(map_topografia.keys()), index=1, key="lote_v2")
+        v3 = col3.number_input("Data do Evento (Ano Coleta)", min_value=2000.0, value=2026.0, key="lote_v3")

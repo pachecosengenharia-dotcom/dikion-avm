@@ -11,17 +11,11 @@ import matplotlib.pyplot as plt
 
 st.set_page_config(page_title="Plataforma AVM SaaS", page_icon="🏢", layout="wide")
 
-# ==========================================
-# 1. INICIALIZAÇÃO SEGURA DO ESTADO DE SESSÃO
-# ==========================================
-if 'memorizar_calculo' not in st.session_state:
-    st.session_state.memorizar_calculo = None
-if 'status_jur' not in st.session_state:
-    st.session_state.status_jur = True
-if 'score_jur' not in st.session_state:
-    st.session_state.score_jur = "RISCO BAIXO"
+# Inicialização segura de variáveis de estado
+if 'memorizar_calculo' not in st.session_state: st.session_state.memorizar_calculo = None
+if 'status_jur' not in st.session_state: st.session_state.status_jur = True
+if 'score_jur' not in st.session_state: st.session_state.score_jur = "RISCO BAIXO"
 
-# Base padrão de amostras para contingência caso não haja upload
 def carregar_base_padrao():
     lines = [[100.0 + (i*15), 200.0 + (i*20), 1200.0 + (i*50), 2.0, 5.0, (100.0 + (i*15)) * 4300.0] for i in range(12)]
     return pd.DataFrame(lines, columns=['v1', 'v2', 'v3', 'v4', 'v5', 'valor_total_declarado'])
@@ -30,7 +24,6 @@ def gerar_laudo_pdf(tenant, tipo, area, valores, stats, status_jur, score_jur, e
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
     story, styles = [], getSampleStyleSheet()
-    
     t_style = ParagraphStyle('T1', parent=styles['Heading1'], fontSize=14, textColor=colors.HexColor("#1A365D"), spaceAfter=10)
     p_style = ParagraphStyle('P1', parent=styles['Normal'], fontSize=8.5, leading=12, spaceAfter=5)
     
@@ -53,11 +46,7 @@ def gerar_laudo_pdf(tenant, tipo, area, valores, stats, status_jur, score_jur, e
     buf.seek(0)
     return buf.getvalue()
 
-# ==========================================
-# 2. ISOLAMENTO DO MOTOR DE MACHINE LEARNING
-# ==========================================
 def executar_modelo_avm(v1, v2, v3, v4, v5, df_dados):
-    """Executa os cálculos estritamente sob demanda para impedir erros de tipo."""
     X = df_dados[['v1', 'v2', 'v3', 'v4', 'v5']].values.astype(np.float64)
     y = df_dados['valor_total_declarado'].values.astype(np.float64)
     
@@ -72,12 +61,10 @@ def executar_modelo_avm(v1, v2, v3, v4, v5, df_dados):
     g_fund = "Grau III" if len(df_dados) >= 5 else "Grau II"
     g_prec = "Grau III" if amp <= 30.0 else "Grau II"
     
-    # Formatação limpa dos pesos iterados (Evita conflitos de arrays e strings)
     imp = model.feature_importances_
     termos = " + ".join([f"({float(p)*100:.1f}% × V{i+1})" for i, p in enumerate(imp)])
     equacao_string = f"Valor = {val_medio*0.15:,.2f} + " + termos
     
-    # Gráficos de Aderência e Resíduos Normativos
     y_pred_total = model.predict(X)
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 2.5))
     ax1.scatter(y, y_pred_total, color='#2B6CB0', alpha=0.7, edgecolors='k')
@@ -98,9 +85,7 @@ def executar_modelo_avm(v1, v2, v3, v4, v5, df_dados):
         'fund': g_fund, 'prec': g_prec, 'r2': 0.94, 'eq': equacao_string, 'img': buf_graficos, 'v1': float(v1)
     }
 
-# ==========================================
-# 3. INTERFACE E PARAMETRIZAÇÃO VISUAL
-# ==========================================
+# Interface Gráfica Principal
 st.sidebar.header("🔑 Identificação do Contratante")
 tenant_selecionado = st.sidebar.selectbox("Cliente Institucional", ["001 - Banco Alfa S.A.", "002 - Imobiliária Local Ltda"])
 st.sidebar.markdown("**Plano Ativo:** 🟢 ENTERPRISE\n\n**Conformidade Reguladora:**\n* ✔️ BACEN CMN 4.910\n* ✔️ ABNT NBR 14653-2")
@@ -145,10 +130,8 @@ else:
     val_v4 = m_acab[col1.selectbox("Padrão de Acabamento", list(m_acab.keys()), index=1, key="g4")]
     val_v5 = col2.number_input("Idade Aparente (Anos)", min_value=0.0, value=10.0, key="g5")
 
-# Disparador seguro: Executa estritamente sob ação do clique
 if botao_calcular:
     df_global = carregar_base_padrao()
-    
     if arquivo_planilha is not None:
         try:
             df_lido = pd.read_csv(arquivo_planilha) if arquivo_planilha.name.endswith('.csv') else pd.read_excel(arquivo_planilha)
@@ -157,11 +140,8 @@ if botao_calcular:
             df_global = df_lido
         except:
             pass
-            
-    # Executa o isolamento preditivo sem chance de carregar valores vazios na largada
     st.session_state.memorizar_calculo = executar_modelo_avm(val_v1, val_v2, val_v3, val_v4, val_v5, df_global)
 
-# Exibição travada e estável dos resultados em tela
 if st.session_state.memorizar_calculo is not None:
     res = st.session_state.memorizar_calculo
     st.write("---")
@@ -181,19 +161,13 @@ if st.session_state.memorizar_calculo is not None:
     
     st.info(f"📊 **Equação Equivalente do Mercado:** `{res['eq']}`")
     st.image(res['img'], caption="Avaliação Avançada: Gráfico de Aderência (Esquerda) e Distribuição de Resíduos (Direita)")
-with st.expander("📜 2. Painel de Riscos Jurídicos e Documentais"):
-    st.session_state.status_jur = st.toggle("Documentação da Garantia Regularizada", 
-    value=st.session_state.status_jur)
-    st.session_state.score_jur = st.selectbox("Grau de Risco Legal", ["RISCO BAIXO", 
-    "RISCO MODERADO", "RISCO CRÍTICO"])
 
-Emissão do laudo técnico oficial em PDFif 
-    st.session_state.memorizar_calculo is not None:
+with st.expander("📜 2. Painel de Riscos Jurídicos e Documentais"):
+    st.session_state.status_jur = st.toggle("Documentação da Garantia Regularizada", value=st.session_state.status_jur)
+    st.session_state.score_jur = st.selectbox("Grau de Risco Legal", ["RISCO BAIXO", "RISCO MODERADO", "RISCO CRÍTICO"])
+
+if st.session_state.memorizar_calculo is not None:
     st.sidebar.write("---")
     st.sidebar.subheader("📥 Emissão do Laudo Técnico")
     res = st.session_state.memorizar_calculo
-pdf_laudo = gerar_laudo_pdf(tenant_selecionado, tipologia_sel, res['v1'], res, res, 
-    st.session_state.status_jur, st.session_state.score_jur, res['eq'])
-    st.sidebar.download_button("📥 Baixar Laudo Completo (PDF)", data=pdf_laudo, 
-    file_name=f"laudo_regulamentar_{tipologia_sel.lower()}.pdf", mime="application/pdf", 
-    use_container_width=True)
+    pdf_laudo = gerar_laudo_pdf(tenant_selecionado, tipologia_sel, res['v1'], res, res, st.session_state.status_jur, st.session_state.score_jur, res['eq'])

@@ -116,7 +116,6 @@ if 'memorizar_calculo' not in st.session_state: st.session_state.memorizar_calcu
 with aba_avm:
     tipologia_sel = st.selectbox("🎯 Selecione a Tipologia do Imóvel Alvo:", ["CASA", "APARTAMENTO", "LOTE", "GALPAO"])
     
-    # Validação e leitura imediata do arquivo fora do evento do botão (Corrige o bug de upload)
     arquivo_planilha = st.file_uploader("Arraste aqui a planilha de imóveis comparáveis (.xlsx ou .csv) [Opcional]", type=["xlsx", "csv"])
     
     df_global = carregar_base_multitipologia_padrao()
@@ -168,3 +167,4 @@ with aba_avm:
         features_lista = ['area_privativa', 'indice_fiscal', 'vagas_garagem', 'estado_conservacao', 'padrao_acabamento']
 
     elif tipologia_sel == "LOTE":
+        v1 = col1.number_input("Área do Terreno (m²)", min_value=10.0, value=360.0, key="lote_v1")

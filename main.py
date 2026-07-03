@@ -30,10 +30,11 @@ def carregar_base_multitipologia_padrao():
 
 def gerar_grafico_mercado(df_saneado, area_alvo, valor_estimado_m2):
     fig, ax = plt.subplots(figsize=(6, 3))
-    ax.scatter(df_saneado['v1'], df_saneado['valor_unitario_m2'], color='#2B6CB0', alpha=0.7, label='Amostras')
+    # Utiliza explicitamente a coluna de área numérica tratada
+    ax.scatter(df_saneado['v1_grafico'], df_saneado['valor_unitario_m2'], color='#2B6CB0', alpha=0.7, label='Amostras')
     ax.scatter(area_alvo, valor_estimado_m2, color='#E53E3E', marker='*', s=200, label='Avaliado')
     ax.set_title('Dispersão do Mercado (Área Principal vs Preço m²)', fontsize=10, fontweight='bold', color='#1A365D')
-    ax.set_xlabel('Dimensão / Área Principal', fontsize=8)
+    ax.set_xlabel('Dimensão / Área Principal (m²)', fontsize=8)
     ax.set_ylabel('Preço Unitário (R$/m²)', fontsize=8)
     ax.grid(True, linestyle='--', alpha=0.5)
     ax.legend(fontsize=7, loc='best')
@@ -116,30 +117,12 @@ if 'memorizar_calculo' not in st.session_state: st.session_state.memorizar_calcu
 with aba_avm:
     tipologia_sel = st.selectbox("🎯 Selecione a Tipologia do Imóvel Alvo:", ["CASA", "APARTAMENTO", "LOTE", "GALPAO"])
     
-    # Validação e leitura imediata do arquivo fora do evento do botão (Corrige o bug de upload)
-    arquivo_planilha = st.file_uploader("Arraste aqui a planilha de imóveis comparáveis (.xlsx ou .csv) [Opcional]", type=["xlsx", "csv"])
+    botao_calcular = st.button("🚀 CALCULAR AVALIAÇÃO IMOBILIÁRIA", use_container_width=True)
     
-    df_global = carregar_base_multitipologia_padrao()
-    
-    if arquivo_planilha is not None:
-        try:
-            if arquivo_planilha.name.endswith('.csv'):
-                df_carregado = pd.read_csv(arquivo_planilha)
-            else:
-                df_carregado = pd.read_excel(arquivo_planilha)
-                
-            df_carregado.columns = df_carregado.columns.str.lower().str.strip()
-            colunas_mapeamento = {
-                'area_construida': 'area_privativa', 'area_util': 'area_privativa', 'metragem': 'area_privativa',
-                'preco': 'valor_total_declarado', 'valor': 'valor_total_declarado'
-            }
-            df_carregado.rename(columns=colunas_mapeamento, inplace=True)
-            df_global = df_carregado
-            st.success(f"🟩 PLANILHA VALIDADA: {len(df_global)} registros lidos com sucesso!")
-        except Exception as e:
-            st.error(f"Erro na leitura estrutural do arquivo. Usando base sintética. Erro: {e}")
-
     st.write("---")
+    arquivo_planilha = st.file_uploader("Arraste aqui a planilha de imóveis comparáveis (.xlsx ou .csv) [Opcional]", type=["xlsx", "csv"])
+    st.write("---")
+    
     st.markdown("##### 📌 Atributos Específicos do Imóvel (Exatamente 5 Variáveis)")
     col1, col2, col3 = st.columns(3)
     
@@ -168,3 +151,14 @@ with aba_avm:
         features_lista = ['area_privativa', 'indice_fiscal', 'vagas_garagem', 'estado_conservacao', 'padrao_acabamento']
 
     elif tipologia_sel == "LOTE":
+        v1 = col1.number_input("Área do Terreno (m²)", min_value=10.0, value=360.0, key="lote_v1")
+        v2_txt = col2.selectbox("Topografia", list(map_topografia.keys()), index=1, key="lote_v2")
+        v3 = col3.number_input("Data do Evento (Ano Coleta)", min_value=2000.0, value=2026.0, key="lote_v3")
+        v4 = col1.number_input("Testada / Frente (m)", min_value=0.0, value=12.0, key="lote_v4")
+        v5_txt = col2.selectbox("Origem da Informação", list(map_origem.keys()), index=0, key="lote_v5")
+        v2 = map_topografia[v2_txt]
+        v5 = map_origem[v5_txt]
+        features_lista = ['area_terreno', 'topografia', 'data_evento', 'frente', 'origem_informacao']
+
+    elif tipologia_sel == "GALPAO":
+        v1 = col1.number_input("Área Privativa (m²)", min_value=10.0, value=500.0, key="gal_v1")

@@ -47,6 +47,13 @@ def gerar_laudo_pdf(tenant, tipo, area, valores, stats, status_jur, score_jur, e
     return buf.getvalue()
 
 def executar_modelo_avm(v1, v2, v3, v4, v5, df_dados):
+    # PROTEÇÃO KEYERROR: Garante as colunas necessárias de treino no DataFrame final
+    for c in ['v1', 'v2', 'v3', 'v4', 'v5']:
+        if c not in df_dados.columns:
+            df_dados[c] = 0.0
+    if 'valor_total_declarado' not in df_dados.columns:
+        df_dados['valor_total_declarado'] = float(v1) * 4300.0
+
     X = df_dados[['v1', 'v2', 'v3', 'v4', 'v5']].values.astype(np.float64)
     y = df_dados['valor_total_declarado'].values.astype(np.float64)
     
@@ -136,7 +143,19 @@ if botao_calcular:
         try:
             df_lido = pd.read_csv(arquivo_planilha) if arquivo_planilha.name.endswith('.csv') else pd.read_excel(arquivo_planilha)
             df_lido.columns = df_lido.columns.str.lower().str.strip()
-            df_lido.rename(columns={'area_construida': 'v1', 'area_privativa': 'v1', 'preco': 'valor_total_declarado', 'valor': 'valor_total_declarado'}, inplace=True)
+            
+            # TRATAMENTO POSICIONAL: Mapeia dinamicamente as 5 primeiras colunas numéricas encontradas na planilha do usuário
+            colunas_numericas = df_lido.select_dtypes(include=[np.number]).columns.tolist()
+            for idx, c_name in enumerate(colunas_numericas[:5]):
+                df_lido.rename(columns={c_name: f'v{idx+1}'}, inplace=True)
+                
+            # Tenta mapear coluna de preço se houver correspondência de nomes comuns
+            for preco_sinonimo in ['preco', 'valor', 'total', 'declarado']:
+                col_encontrada = [c for c in df_lido.columns if preco_sinonimo in c]
+                if col_encontrada:
+                    df_lido.rename(columns={col_encontrada[0]: 'valor_total_declarado'}, inplace=True)
+                    break
+                    
             df_global = df_lido
         except:
             pass

@@ -110,8 +110,9 @@ if botao_calcular:
     g_fund = "Grau III" if len(df_filtrado) >= 5 else "Grau II"
     g_prec = "Grau III" if amp <= 30.0 else "Grau II"
     
-    termos = [f"({float(p)*100:.1f}% × V{i+1})" for i, p in enumerate(model.feature_importances_)]
-    equacao = f"Valor = {val_medio*0.15:,.2f} + " + " + ".join(termos)
+    # FIX DE SINTAXE: Indexação individual do vetor de importância para evitar conflitos de string
+    imp = model.feature_importances_
+    equacao = f"Valor = {val_medio*0.15:,.2f} + ({imp[0]*100:.1f}%×V1) + ({imp[1]*100:.1f}%×V2) + ({imp[2]*100:.1f}%×V3)"
     buf_graficos = gerar_graficos_diagnostico(y, model.predict(X), float(v1), val_medio)
 
     st.session_state.memorizar_calculo = {
@@ -133,7 +134,7 @@ if st.session_state.memorizar_calculo is not None:
     m2.metric("Grau de Precisão", res['prec'])
     m3.metric("Ajuste Estatístico (R²)", f"{res['r2']}")
     st.info(f"📊 **Equação do Modelo:** `{res['eq']}`")
-    st.image(res['img'], caption="Aderência e Resíduos")
+    st.image(res['img'], caption="Gráficos de Diagnóstico: Aderência (Esquerda) e Resíduos (Direita)")
 
 with st.expander("📜 2. Painel de Riscos Jurídicos e Documentais"):
     st.session_state.status_jur = st.toggle("Garantia Regularizada", value=st.session_state.status_jur)
@@ -143,4 +144,4 @@ if st.session_state.memorizar_calculo is not None:
     st.sidebar.write("---")
     res = st.session_state.memorizar_calculo
     pdf_laudo = gerar_pdf(tenant_selecionado, tipologia_sel, res['v1'], res, res, st.session_state.status_jur, st.session_state.score_jur, res['eq'])
-    st.sidebar.download_button("📥 Baixar Laudo Completo (PDF)", data=pdf_laudo, file_name=f"laudo_nbr_{tipologia_sel.lower()}.pdf", mime="application/pdf", use_container_width=True)
+    st.sidebar.download_button("📥 Baixar Laudo Completo (PDF)", data=pdf_laudo, file_name=f"laudo_tecnico.pdf", mime="application/pdf", use_container_width=True)

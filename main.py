@@ -17,30 +17,31 @@ st.set_page_config(page_title="Plataforma AVM SaaS - Engenharia", page_icon="�
 
 @st.cache_data
 def carregar_base_multitipologia_padrao():
-    """Garante amostras base para treinamento caso o usuário não envie uma planilha."""
     dados = []
     for i in range(8):
-        dados.append((300000.0 + (i*50000), 100.0 + (i*15), 1100.0 + (i*50), 180.0 + (i*20), 2.0, 1.0, "CASA"))
-        dados.append((250000.0 + (i*40000), 70.0 + (i*10), 1400.0 + (i*40), 2.0, 2.0, 1.0, "APARTAMENTO"))
-        dados.append((150000.0 + (i*30000), 300.0 + (i*30), 2.0, 2026.0, 12.0, 1.0, "LOTE"))
-        dados.append((900000.0 + (i*100000), 450.0 + (i*50), 950.0 + (i*1000), 6.0, 8.0, 2.0, "GALPAO"))
-    return pd.DataFrame(dados, columns=['valor_total_declarado', 'v1', 'v2', 'v3', 'v4', 'v5', 'tipologia'])
+        dados.append((300000.0 + (i*50000), 5000.0, 100.0 + (i*15), 1100.0 + (i*50), 180.0 + (i*20), 2.0, 1.0, "CASA"))
+        dados.append((250000.0 + (i*40000), 5500.0, 70.0 + (i*10), 1400.0 + (i*40), 2.0, 2.0, 1.0, "APARTAMENTO"))
+        dados.append((150000.0 + (i*30000), 1000.0, 300.0 + (i*30), 2.0, 2026.0, 12.0, 1.0, "LOTE"))
+        dados.append((900000.0 + (i*100000), 2200.0, 450.0 + (i*50), 950.0 + (i*1000), 6.0, 8.0, 2.0, "GALPAO"))
+    return pd.DataFrame(dados, columns=['valor_total_declarado', 'valor_unitario_m2', 'v1', 'v2', 'v3', 'v4', 'v5', 'tipologia'])
 
-def gerar_grafico_pdf(df_saneado, area_alvo, valor_estimado_m2):
-    """Gera o buffer do gráfico estático EXCLUSIVAMENTE para ser impresso dentro do PDF."""
-    fig, ax = plt.subplots(figsize=(5, 2.5))
-    ax.scatter(df_saneado['v1'], df_saneado['valor_total_declarado']/df_saneado['v1'], color='#2B6CB0', alpha=0.7)
-    ax.scatter(area_alvo, valor_estimado_m2, color='#E53E3E', marker='*', s=150)
-    ax.set_title('Dispersao do Mercado', fontsize=9, fontweight='bold', color='#1A365D')
+def gerar_grafico_mercado(df_saneado, area_alvo, valor_estimado_m2):
+    fig, ax = plt.subplots(figsize=(6, 3))
+    ax.scatter(df_saneado['v1'], df_saneado['valor_unitario_m2'], color='#2B6CB0', alpha=0.7, label='Amostras')
+    ax.scatter(area_alvo, valor_estimado_m2, color='#E53E3E', marker='*', s=200, label='Avaliado')
+    ax.set_title('Dispersão do Mercado (Área Principal vs Preço m²)', fontsize=10, fontweight='bold', color='#1A365D')
+    ax.set_xlabel('Dimensão / Área Principal', fontsize=8)
+    ax.set_ylabel('Preço Unitário (R$/m²)', fontsize=8)
+    ax.grid(True, linestyle='--', alpha=0.5)
+    ax.legend(fontsize=7, loc='best')
     plt.tight_layout()
     img_buf = io.BytesIO()
-    plt.savefig(img_buf, format='png', dpi=150)
+    plt.savefig(img_buf, format='png', dpi=200)
     img_buf.seek(0)
     plt.close(fig)
     return img_buf
 
 def gerar_laudo_pdf_ia(tenant, tipologia, area, valores, model_stats, status_juridico, score_juridico, grafico_buf, equacao):
-    """Compila o relatório corporativo final em PDF utilizando ReportLab."""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40.0, leftMargin=40.0, topMargin=40.0, bottomMargin=40.0)
     story = []

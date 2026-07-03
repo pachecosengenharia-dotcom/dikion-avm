@@ -141,56 +141,56 @@ with aba_avm:
     tipologia_sel = st.selectbox("🎯 Selecione a Tipologia do Imovel Alvo para Configuracao:", ["CASA", "APARTAMENTO", "LOTE", "GALPAO"])
     st.write("---")
     
-    # Renderização Condicional dos Inputs - Sempre Coletando Exatamente 5 Variáveis
+    # Renderização Condicional dos Inputs
     col1, col2, col3 = st.columns(3)
     
     # Dicionários auxiliares para mapear texto em números para o modelo
-    map_acabamento = {"Baixo": 1, "Normal": 2, "Alto": 3}
-    map_conservacao = {"Regular": 1, "Bom": 2, "Ótimo": 3}
-    map_topografia = {"Aclive": 1, "Plano": 2, "Declive": 3}
-    map_origem = {"Imobiliária": 1, "Proprietário": 2, "Banco": 3}
+    map_acabamento = {"Baixo": 1.0, "Normal": 2.0, "Alto": 3.0}
+    map_conservacao = {"Regular": 1.0, "Bom": 2.0, "Ótimo": 3.0}
+    map_topografia = {"Aclive": 1.0, "Plano": 2.0, "Declive": 3.0}
+    map_origem = {"Imobiliária": 1.0, "Proprietário": 2.0, "Banco": 3.0}
 
     if tipologia_sel == "CASA":
         v1 = col1.number_input("Área Privativa (m²)", min_value=10.0, value=120.0)
         v2 = col2.number_input("Área do Terreno (m²)", min_value=10.0, value=200.0)
         v3 = col3.number_input("Índice Fiscal da Quadra", min_value=0.0, value=1200.0)
         v4_texto = col1.selectbox("Padrão de Acabamento", list(map_acabamento.keys()), index=1)
-        v5 = col2.number_input("Idade Aparente (Anos)", min_value=0, value=5)
+        v5 = col2.number_input("Idade Aparente (Anos)", min_value=0.0, value=5.0)
         v4 = map_acabamento[v4_texto]
         features_lista = ['area_privativa', 'area_terreno', 'indice_fiscal', 'padrao_acabamento', 'idade_aparente']
-        vetor_alvo = np.array([[v1, v2, v3, v4, v5]])
+        vetor_alvo = np.array([[float(v1), float(v2), float(v3), float(v4), float(v5)]], dtype=np.float64)
 
     elif tipologia_sel == "APARTAMENTO":
         v1 = col1.number_input("Área Privativa (m²)", min_value=10.0, value=80.0)
         v2 = col2.number_input("Índice Fiscal da Quadra", min_value=0.0, value=1500.0)
-        v3 = col3.number_input("Vagas de Garagem", min_value=0, value=1)
+        v3 = col3.number_input("Vagas de Garagem", min_value=0.0, value=1.0)
         v4_texto = col1.selectbox("Estado de Conservação", list(map_conservacao.keys()), index=1)
         v5_texto = col2.selectbox("Padrão de Acabamento", list(map_acabamento.keys()), index=1)
         v4 = map_conservacao[v4_texto]
         v5 = map_acabamento[v5_texto]
         features_lista = ['area_privativa', 'indice_fiscal', 'vagas_garagem', 'estado_conservacao', 'padrao_acabamento']
-        vetor_alvo = np.array([[v1, v2, v3, v4, v5]])
+        vetor_alvo = np.array([[float(v1), float(v2), float(v3), float(v4), float(v5)]], dtype=np.float64)
 
     elif tipologia_sel == "LOTE":
         v1 = col1.number_input("Área do Terreno (m²)", min_value=10.0, value=360.0)
         v2_texto = col2.selectbox("Topografia", list(map_topografia.keys()), index=1)
-        v3 = col3.number_input("Data do Evento (Ano Corrente)", min_value=2000, value=2026)
+        v3 = col3.number_input("Data do Evento (Ano Corrente)", min_value=2000.0, value=2026.0)
         v4 = col1.number_input("Testada / Frente (m)", min_value=0.0, value=12.0)
         v5_texto = col2.selectbox("Origem da Informação", list(map_origem.keys()), index=0)
         v2 = map_topografia[v2_texto]
         v5 = map_origem[v5_texto]
         features_lista = ['area_terreno', 'topografia', 'data_evento', 'frente', 'origem_informacao']
-        vetor_alvo = np.array([[v1, v2, v3, v4, v5]])
+        vetor_alvo = np.array([[float(v1), float(v2), float(v3), float(v4), float(v5)]], dtype=np.float64)
 
     elif tipologia_sel == "GALPAO":
         v1 = col1.number_input("Área Privativa (m²)", min_value=10.0, value=500.0)
         v2 = col2.number_input("Área do Terreno (m²)", min_value=10.0, value=1000.0)
         v3 = col3.number_input("Índice Fiscal da Quadra", min_value=0.0, value=900.0)
         v4_texto = col1.selectbox("Padrão de Acabamento", list(map_acabamento.keys()), index=1)
-        v5 = col2.number_input("Idade Aparente (Anos)", min_value=0, value=10)
+        v5 = col2.number_input("Idade Aparente (Anos)", min_value=0.0, value=10.0)
         v4 = map_acabamento[v4_texto]
         features_lista = ['area_privativa', 'area_terreno', 'indice_fiscal', 'padrao_acabamento', 'idade_aparente']
-        vetor_alvo = np.array([[v1, v2, v3, v4, v5]])
+        vetor_alvo = np.array([[float(v1), float(v2), float(v3), float(v4), float(v5)]], dtype=np.float64)
 
     st.write("---")
     
@@ -205,36 +205,37 @@ with aba_avm:
         if 'valor_total_declarado' not in df_filtrado.columns:
             df_filtrado['valor_total_declarado'] = 500000.0
             
-        # Converter dados de texto que possam vir na planilha em números usando os mesmos mapeamentos da tela
+        # Converter explicitamente strings para números mapeados na planilha carregada
         if 'padrao_acabamento' in df_filtrado.columns:
-            df_filtrado['padrao_acabamento'] = df_filtrado['padrao_acabamento'].map(map_acabamento).fillna(2)
+            df_filtrado['padrao_acabamento'] = df_filtrado['padrao_acabamento'].map(map_acabamento).fillna(2.0)
         if 'estado_conservacao' in df_filtrado.columns:
-            df_filtrado['estado_conservacao'] = df_filtrado['estado_conservacao'].map(map_conservacao).fillna(2)
+            df_filtrado['estado_conservacao'] = df_filtrado['estado_conservacao'].map(map_conservacao).fillna(2.0)
         if 'topografia' in df_filtrado.columns:
-            df_filtrado['topografia'] = df_filtrado['topografia'].map(map_topografia).fillna(2)
+            df_filtrado['topografia'] = df_filtrado['topografia'].map(map_topografia).fillna(2.0)
         if 'origem_informacao' in df_filtrado.columns:
-            df_filtrado['origem_informacao'] = df_filtrado['origem_informacao'].map(map_origem).fillna(1)
+            df_filtrado['origem_informacao'] = df_filtrado['origem_informacao'].map(map_origem).fillna(1.0)
 
-        # Se as amostras reais forem insuficientes (< 3), geramos dados sintéticos específicos para não travar
+        # Se as amostras reais forem insuficientes (< 3), geramos dados sintéticos específicos
         if len(df_filtrado) < 3:
             st.warning(f"Amostras insuficientes na planilha para {tipologia_sel}. Gerando base sintética alinhada.")
             linhas_mock = []
             for i in range(5):
-                base_mock = [v * (1 + (i - 2) * 0.1) for v in vetor_alvo[0]]
-                valor_mock = (v1 * 4000.0) * (1 + (i - 2) * 0.1) # Cálculo base para preço aproximado
-                linhas_mock.append(list(base_mock) + [valor_mock])
+                base_mock = [float(v) * (1 + (i - 2) * 0.1) for v in vetor_alvo[0]]
+                valor_mock = (float(v1) * 4000.0) * (1 + (i - 2) * 0.1)
+                linhas_mock.append(base_mock + [valor_mock])
             df_filtrado = pd.DataFrame(linhas_mock, columns=features_lista + ['valor_total_declarado'])
 
-        X = df_filtrado[features_lista]
-        y = df_filtrado['valor_total_declarado']
+        # Forçar conversão final de todo o dataset de treino para float
+        X = df_filtrado[features_lista].astype(float)
+        y = df_filtrado['valor_total_declarado'].astype(float)
         
         # Treinamento rigoroso com as 5 variáveis estruturadas
         model = RandomForestRegressor(n_estimators=30, random_state=42)
         model.fit(X, y)
         
-        valor_predito = float(model.predict(vetor_alvo))
-        # Utiliza v1 (que mapeia a área principal de cada tipologia) para calcular o valor do m²
-        valor_m2_predito = valor_predito / max(1.0, v1)
+        # Predição agora 100% segura contra falhas de tipo
+        valor_predito = float(model.predict(vetor_alvo)[0])
+        valor_m2_predito = valor_predito / max(1.0, float(v1))
         
         std_dev = df_filtrado['valor_total_declarado'].std()
         if pd.isna(std_dev) or std_dev == 0:
@@ -249,14 +250,14 @@ with aba_avm:
         r2_score = round(max(0.78, min(0.98, 1.0 - (std_dev / valor_predito))), 2)
         model_stats = {'r2': r2_score, 'saneadas': len(df_filtrado)}
         
-        # Preparação do gráfico ajustada para a dimensão principal de cada tipologia
-        df_filtrado['area_principal_plot'] = df_filtrado[features_lista[0]]
+        # Preparação do gráfico usando a dimensão principal
+        df_filtrado['area_principal_plot'] = df_filtrado[features_lista[0]].astype(float)
         df_filtrado['valor_unitario_m2'] = df_filtrado['valor_total_declarado'] / df_filtrado['area_principal_plot']
-        grafico_buf = gerar_grafico_mercado(df_filtrado, v1, valor_m2_predito)
+        grafico_buf = gerar_grafico_mercado(df_filtrado, float(v1), valor_m2_predito)
         
         st.session_state.memorizar_calculo = {
             'tipologia': tipologia_sel,
-            'area': v1,
+            'area': float(v1),
             'valores': valores,
             'model_stats': model_stats,
             'grafico_buf': grafico_buf

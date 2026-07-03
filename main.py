@@ -75,40 +75,45 @@ if tipologia_sel == "CASA":
     v1 = col1.number_input("Área Privativa (m²)", min_value=10.0, value=120.0, key="c1")
     v2 = col2.number_input("Área do Terreno (m²)", min_value=10.0, value=200.0, key="c2")
     v3 = col3.number_input("Índice Fiscal da Quadra", min_value=0.0, value=1200.0, key="c3")
-    v4 = m_acab[col1.selectbox("Padrão de Acabamento", list(m_acab.keys()), index=1, key="c4")]
+    v4_txt = col1.selectbox("Padrão de Acabamento", list(m_acab.keys()), index=1, key="c4")
     v5 = col2.number_input("Idade Aparente (Anos)", min_value=0.0, value=5.0, key="c5")
-    features_lista = ['v1', 'v2', 'v3', 'v4', 'v5']
+    v4 = m_acab[v4_txt]
 elif tipologia_sel == "APARTAMENTO":
     v1 = col1.number_input("Área Privativa (m²)", min_value=10.0, value=80.0, key="a1")
     v2 = col2.number_input("Índice Fiscal da Quadra", min_value=0.0, value=1500.0, key="a2")
     v3 = col3.number_input("Vagas de Garagem (Unidades)", min_value=0.0, value=1.0, key="a3")
-    v4 = m_cons[col1.selectbox("Estado de Conservação", list(m_cons.keys()), index=1, key="a4")]
-    v5 = m_acab[col2.selectbox("Padrão de Acabamento", list(m_acab.keys()), index=1, key="a5")]
-    features_lista = ['v1', 'v2', 'v3', 'v4', 'v5']
+    v4_txt = col1.selectbox("Estado de Conservação", list(m_cons.keys()), index=1, key="a4")
+    v5_txt = col2.selectbox("Padrão de Acabamento", list(m_acab.keys()), index=1, key="a5")
+    v4 = m_cons[v4_txt]
+    v5 = m_acab[v5_txt]
 elif tipologia_sel == "LOTE":
     v1 = col1.number_input("Área do Terreno (m²)", min_value=10.0, value=360.0, key="l1")
-    v2 = m_topo[col2.selectbox("Topografia do Lote", list(m_topo.keys()), index=1, key="l2")]
+    v2_txt = col2.selectbox("Topografia do Lote", list(m_topo.keys()), index=1, key="l2")
     v3 = col3.number_input("Data do Evento (Ano Coleta)", min_value=2000.0, value=2026.0, key="l3")
     v4 = col1.number_input("Testada / Frente (m)", min_value=0.0, value=12.0, key="l4")
-    v5 = m_orig[col2.selectbox("Origem da Informação", list(m_orig.keys()), index=0, key="l5")]
-    features_lista = ['v1', 'v2', 'v3', 'v4', 'v5']
+    v5_txt = col2.selectbox("Origem da Informação", list(m_orig.keys()), index=0, key="l5")
+    v2 = m_topo[v2_txt]
+    v5 = m_orig[v5_txt]
 else:
     v1 = col1.number_input("Área Privativa (m²)", min_value=10.0, value=500.0, key="g1")
     v2 = col2.number_input("Área do Terreno (m²)", min_value=10.0, value=1000.0, key="g2")
     v3 = col3.number_input("Índice Fiscal da Quadra", min_value=0.0, value=900.0, key="g3")
-    v4 = m_acab[col1.selectbox("Padrão de Acabamento", list(m_acab.keys()), index=1, key="g4")]
+    v4_txt = col1.selectbox("Padrão de Acabamento", list(m_acab.keys()), index=1, key="g4")
     v5 = col2.number_input("Idade Aparente (Anos)", min_value=0.0, value=10.0, key="g5")
-    features_lista = ['v1', 'v2', 'v3', 'v4', 'v5']
+    v4 = m_acab[v4_txt]
 
 # ==========================================
 # 3. COMPUTAÇÃO E EQUACIONAMENTO MATEMÁTICO
 # ==========================================
+# REESTRUTURAÇÃO COMPLETA: O vetor_alvo agora só é montado após o clique confirmar os dados
 if botao_calcular:
     df_filtrado = carregar_base_padrao()
     X = df_filtrado[['v1', 'v2', 'v3', 'v4', 'v5']].astype(float)
     y = df_filtrado['valor_total_declarado'].astype(float)
     
     model = RandomForestRegressor(n_estimators=30, random_state=42).fit(X, y)
+    
+    # Montagem e inferência do vetor completamente isoladas dentro do escopo do clique
     vetor_alvo = np.array([[float(v1), float(v2), float(v3), float(v4), float(v5)]], dtype=np.float64)
     val_medio = float(model.predict(vetor_alvo))
     
@@ -119,7 +124,7 @@ if botao_calcular:
     g_fund = "Grau III (Máximo)" if len(df_filtrado) >= 5 else "Grau II"
     g_prec = "Grau III (Máximo)" if amp <= 30.0 else "Grau II"
     
-    # RESOLUÇÃO DO BUG: Processamento e conversão correta de strings por laço iterativo
+    # Processamento individualizado das variáveis de importância
     imp = model.feature_importances_
     termos = [f"({float(p)*100:.1f}% × V{i+1})" for i, p in enumerate(imp)]
     equacao = f"Valor = {val_medio*0.15:,.2f} + " + " + ".join(termos)
@@ -171,4 +176,5 @@ if st.session_state.memorizar_calculo is not None:
     st.sidebar.subheader("📥 Emissão do Laudo Técnico")
     res = st.session_state.memorizar_calculo
     pdf_laudo = gerar_pdf(tenant_selecionado, tipologia_sel, res['v1'], res, res, st.session_state.status_jur, st.session_state.score_jur, res['eq'])
+
     st.sidebar.download_button("📥 Baixar Laudo Completo (PDF)", data=pdf_laudo, file_name=f"laudo_nbr_{tipologia_sel.lower()}.pdf", mime="application/pdf", use_container_width=True)

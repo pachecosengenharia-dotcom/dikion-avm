@@ -111,31 +111,16 @@ if 'score_juridico_global' not in st.session_state: st.session_state.score_jurid
 if 'memorizar_calculo' not in st.session_state: st.session_state.memorizar_calculo = None
 
 with aba_avm:
+    # ----------------------------------------------------------------------
+    # ARQUITETURA DE SEGURANÇA: O SELETORE E O BOTÃO SÃO EXIBIDOS NO TOPO ABSOLUTO
+    # ----------------------------------------------------------------------
     tipologia_sel = st.selectbox("🎯 Selecione a Tipologia do Imóvel Alvo:", ["CASA", "APARTAMENTO", "LOTE", "GALPAO"])
+    botao_calcular = st.button("🚀 CALCULAR AVALIAÇÃO IMOBILIÁRIA (AVM)", use_container_width=True)
     
-    arquivo_planilha = st.file_uploader("Arraste aqui a planilha de imóveis comparáveis (.xlsx ou .csv) [Opcional]", type=["xlsx", "csv"])
-    
-    df_global = carregar_base_multitipologia_padrao()
-    
-    if arquivo_planilha is not None:
-        try:
-            if arquivo_planilha.name.endswith('.csv'):
-                df_carregado = pd.read_csv(arquivo_planilha)
-            else:
-                df_carregado = pd.read_excel(arquivo_planilha)
-                
-            df_carregado.columns = df_carregado.columns.str.lower().str.strip()
-            colunas_mapeamento = {
-                'area_construida': 'area_privativa', 'area_util': 'area_privativa', 'metragem': 'area_privativa',
-                'preco': 'valor_total_declarado', 'valor': 'valor_total_declarado'
-            }
-            df_carregado.rename(columns=colunas_mapeamento, inplace=True)
-            df_global = df_carregado
-            st.success(f"🟩 PLANILHA VALIDADA COM SUCESSO: {len(df_global)} registros encontrados!")
-        except Exception as e:
-            st.error(f"Erro na leitura. Usando banco de contingência. Detalhes: {e}")
-
     st.write("---")
+    arquivo_planilha = st.file_uploader("Arraste aqui a planilha de imóveis comparáveis (.xlsx ou .csv) [Opcional]", type=["xlsx", "csv"])
+    st.write("---")
+    
     st.markdown("##### 📌 Atributos Específicos do Imóvel (Exatamente 5 Variáveis)")
     col1, col2, col3 = st.columns(3)
     
@@ -166,3 +151,12 @@ with aba_avm:
     elif tipologia_sel == "LOTE":
         v1 = col1.number_input("Área do Terreno (m²)", min_value=10.0, value=360.0, key="lote_v1")
         v2_txt = col2.selectbox("Topografia", list(map_topografia.keys()), index=1, key="lote_v2")
+        v3 = col3.number_input("Data do Evento (Ano Coleta)", min_value=2000.0, value=2026.0, key="lote_v3")
+        v4 = col1.number_input("Testada / Frente (m)", min_value=0.0, value=12.0, key="lote_v4")
+        v5_txt = col2.selectbox("Origem da Informação", list(map_origem.keys()), index=0, key="lote_v5")
+        v2 = map_topografia[v2_txt]
+        v5 = map_origem[v5_txt]
+        features_lista = ['area_terreno', 'topografia', 'data_evento', 'frente', 'origem_informacao']
+
+    elif tipologia_sel == "GALPAO":
+        v1 = col1.number_input("Área Privativa (m²)", min_value=10.0, value=500.0, key="gal_v1")

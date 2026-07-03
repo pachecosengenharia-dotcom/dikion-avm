@@ -19,8 +19,8 @@ st.set_page_config(page_title="Plataforma AVM SaaS - Engenharia", page_icon="�
 def carregar_base_multitipologia_padrao():
     """Garante amostras base para treinamento caso o usuário não envie uma planilha ou a planilha falhe."""
     dados = []
-    # 5 Amostras para cada tipologia para atender aos critérios mínimos da norma
-    for i in range(5):
+    # Amostras estruturadas para atender aos critérios mínimos da norma
+    for i in range(7):
         dados.append((300000.0 + (i*50000), 5000.0, 100.0 + (i*15), 1100.0 + (i*50), 180.0 + (i*20), 2.0, 1.0, "CASA"))
         dados.append((250000.0 + (i*40000), 5500.0, 70.0 + (i*10), 1400.0 + (i*40), 2.0, 2.0, 1.0, "APARTAMENTO"))
         dados.append((150000.0 + (i*30000), 1000.0, 300.0 + (i*30), 2.0, 2026.0, 12.0, 1.0, "LOTE"))
@@ -121,12 +121,12 @@ with aba_avm:
     st.subheader("Configuração da Base de Dados de Entrada")
     arquivo_planilha = st.file_uploader("Arraste aqui a planilha de imóveis comparáveis (.xlsx ou .csv)", type=["xlsx", "csv"])
     
-    # Processamento seguro do arquivo carregado
-    df_global = None
+    # Processamento padrão do arquivo carregado
+    df_global = carregar_base_multitipologia_padrao()
     if arquivo_planilha is not None:
         try:
-            df_global = pd.read_csv(arquivo_planilha) if arquivo_planilha.name.endswith('.csv') else pd.read_excel(arquivo_planilha)
-            df_global.columns = df_global.columns.str.lower().str.strip()
+            df_carregado = pd.read_csv(arquivo_planilha) if arquivo_planilha.name.endswith('.csv') else pd.read_excel(arquivo_planilha)
+            df_carregado.columns = df_carregado.columns.str.lower().str.strip()
             
             colunas_mapeamento = {
                 'area_construida': 'area_privativa', 'area_util': 'area_privativa', 'metragem': 'area_privativa',
@@ -134,13 +134,11 @@ with aba_avm:
                 'preco': 'valor_total_declarado', 'valor': 'valor_total_declarado',
                 'padrao': 'padrao_acabamento', 'conservacao': 'estado_conservacao', 'idade': 'idade_aparente'
             }
-            df_global.rename(columns=colunas_mapeamento, inplace=True)
-            st.success(f"🟩 Planilha processada: {len(df_global)} imóveis carregados!")
+            df_carregado.rename(columns=colunas_mapeamento, inplace=True)
+            df_global = df_carregado
+            st.success(f"🟩 Planilha processada: {len(df_global)} imóveis carregados com sucesso!")
         except Exception as e:
             st.error(f"Falha na leitura. Usando banco sintético operacional. Erro: {e}")
-            df_global = carregar_base_multitipologia_padrao()
-    else:
-        df_global = carregar_base_multitipologia_padrao()
 
     st.write("---")
     tipologia_sel = st.selectbox("🎯 Selecione a Tipologia do Imóvel Alvo:", ["CASA", "APARTAMENTO", "LOTE", "GALPAO"])
@@ -149,13 +147,11 @@ with aba_avm:
     st.markdown("##### 📌 Atributos Específicos do Imóvel (Exatamente 5 Variáveis)")
     col1, col2, col3 = st.columns(3)
     
-    # Dicionários de mapeamento ordinal (Texto -> Número)
     map_acabamento = {"Baixo": 1.0, "Normal": 2.0, "Alto": 3.0}
     map_conservacao = {"Regular": 1.0, "Bom": 2.0, "Ótimo": 3.0}
     map_topografia = {"Aclive": 1.0, "Plano": 2.0, "Declive": 3.0}
     map_origem = {"Imobiliária": 1.0, "Proprietário": 2.0, "Banco": 3.0}
     
-    # Captura dos dados com base nas 5 variáveis definidas para cada tipologia
     if tipologia_sel == "CASA":
         v1 = col1.number_input("Área Privativa (m²)", min_value=10.0, value=120.0, key="casa_v1")
         v2 = col2.number_input("Área do Terreno (m²)", min_value=10.0, value=200.0, key="casa_v2")
@@ -167,3 +163,4 @@ with aba_avm:
 
     elif tipologia_sel == "APARTAMENTO":
         v1 = col1.number_input("Área Privativa (m²)", min_value=10.0, value=80.0, key="ap_v1")
+        v2 = col2.number_input("Índice Fiscal da Quadra", min_value=0.0, value=1500.0, key="ap_v2")

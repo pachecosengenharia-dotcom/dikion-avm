@@ -26,10 +26,11 @@ def carregar_base_multitipologia_padrao():
 
 def gerar_grafico_mercado(df_saneado, area_alvo, valor_estimado_m2):
     fig, ax = plt.subplots(figsize=(6, 3))
+    # Utiliza a área principal de forma segura para plotagem
     ax.scatter(df_saneado['area_principal_plot'], df_saneado['valor_unitario_m2'], color='#2B6CB0', alpha=0.7, label='Amostras')
     ax.scatter(area_alvo, valor_estimado_m2, color='#E53E3E', marker='*', s=150, label='Avaliado')
     ax.set_title('Dispersao do Mercado (Area vs Preco m²)', fontsize=10, fontweight='bold', color='#1A365D')
-    ax.set_xlabel('Dimensao Principal (m²)', fontsize=8)
+    ax.set_xlabel('Area Principal (m²)', fontsize=8)
     ax.set_ylabel('Preco Unitario (R$/m²)', fontsize=8)
     ax.grid(True, linestyle='--', alpha=0.5)
     ax.legend(fontsize=7, loc='best')
@@ -40,69 +41,56 @@ def gerar_grafico_mercado(df_saneado, area_alvo, valor_estimado_m2):
     plt.close(fig)
     return img_buf
 
-def gerar_laudo_pdf_ia(tenant, tipologia, area, valores, model_stats, status_juridico, score_juridico, equacao, grafico_buf):
+def gerar_laudo_pdf_ia(tenant, tipologia, area, valores, model_stats, status_juridico, score_juridico, grafico_buf, equacao=""):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40.0, leftMargin=40.0, topMargin=40.0, bottomMargin=40.0)
     story = []
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle('T1', parent=styles['Heading1'], fontSize=15, textColor=colors.HexColor("#1A365D"), spaceAfter=12.0)
-    subtitle_style = ParagraphStyle('T2', parent=styles['Heading2'], fontSize=11, textColor=colors.HexColor("#2B6CB0"), spaceAfter=6.0)
-    text_style = ParagraphStyle('T3', parent=styles['Normal'], fontSize=8.5, leading=12, spaceAfter=5.0)
-    code_style = ParagraphStyle('T4', parent=styles['Normal'], fontSize=7.5, leading=10, textColor=colors.HexColor("#2D3748"), spaceAfter=5.0)
+    title_style = ParagraphStyle('T1', parent=styles['Heading1'], fontSize=16, textColor=colors.HexColor("#1A365D"), spaceAfter=15.0)
+    subtitle_style = ParagraphStyle('T2', parent=styles['Heading2'], fontSize=12, textColor=colors.HexColor("#2B6CB0"), spaceAfter=8.0)
+    text_style = ParagraphStyle('T3', parent=styles['Normal'], fontSize=9, leading=13, spaceAfter=6.0)
     
-    story.append(Paragraph("LAUDO TÉCNICO DE ENGENHARIA DE AVALIAÇÕES POR IA", title_style))
-    story.append(Paragraph(f"<b>Instituição Solicitante:</b> {tenant} | <b>Normativa de Amparo:</b> ABNT NBR 14653", text_style))
-    story.append(Spacer(1, 8.0))
+    story.append(Paragraph("LAUDO TECNICO DE ENGENHARIA DE AVALIACOES POR IA", title_style))
+    story.append(Paragraph(f"<b>Instituicao Solicitante:</b> {tenant} | <b>Normativa:</b> ABNT NBR 14653-2", text_style))
+    story.append(Spacer(1, 10.0))
     
-    story.append(Paragraph("1. Escopo do Bem Avaliado", subtitle_style))
-    t1 = Table([["Tipologia do Bem", tipologia, "Dimensão Principal", f"{area} m²"]], colWidths=(130.0, 110.0, 130.0, 110.0))
-    t1.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#F7FAFC")), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#E2E8F0")), ('PADDING', (0,0), (-1,-1), 4.0)]))
+    story.append(Paragraph("1. Escopo de Avaliacao Imobiliaria", subtitle_style))
+    t1 = Table([["Tipologia do Bem", tipologia, "Dimensao Principal", f"{area} m²"]], colWidths=(130.0, 110.0, 130.0, 110.0))
+    t1.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#F7FAFC")), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#E2E8F0")), ('PADDING', (0,0), (-1,-1), 5.0)]))
     story.append(t1)
-    story.append(Spacer(1, 8.0))
+    story.append(Spacer(1, 10.0))
     
-    story.append(Paragraph("2. Resultados do Motor de Machine Learning e Enquadramento NBR", subtitle_style))
+    story.append(Paragraph("2. Resultados do Motor de Machine Learning & Enquadramento NBR", subtitle_style))
     t2 = Table([
-        ["Métrica de Cobertura do Risco", "Valor Comercial Admissível"],
-        ["Margem Mínima de Segurança (LTV)", f"R$ {valores['v_min']:,.2f}"],
-        ["Valor de Face Estimado (Média)", f"R$ {valores['v_medio']:,.2f}"],
-        ["Limite de Mercado Máximo", f"R$ {valores['v_max']:,.2f}"]
+        ["Metrica / Requisito", "Valor Comercial Admissivel / Enquadramento"],
+        ["Margem Minima de Seguranca (Garantia LTV)", f"R$ {valores['v_min']:,.2f}"],
+        ["Valor de Face Estimado (Media)", f"R$ {valores['v_medio']:,.2f}"],
+        ["Limite de Mercado Maximo", f"R$ {valores['v_max']:,.2f}"],
+        ["Coeficiente de Ajuste R²", f"{model_stats['r2']}"],
+        ["Grau de Fundamentacao", f"{model_stats['fundamentacao']}"],
+        ["Grau de Precisao", f"{model_stats['precisao']}"]
     ], colWidths=(240.0, 240.0))
-    t2.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor("#2B6CB0")), ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E0")), ('PADDING', (0,0), (-1,-1), 4.0)]))
+    t2.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor("#2B6CB0")), ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E0")), ('PADDING', (0,0), (-1,-1), 5.0)]))
     story.append(t2)
-    story.append(Spacer(1, 4.0))
+    story.append(Spacer(1, 10.0))
     
-    story.append(Paragraph(f"<b>Métricas Estatísticas:</b> Coeficiente R² = {model_stats['r2']} | Amostras Saneadas = {model_stats['saneadas']} | <b>Fundamentação:</b> {model_stats['fundamentacao']} | <b>Precisão:</b> {model_stats['precisao']}", text_style))
-    story.append(Spacer(1, 6.0))
+    if equacao:
+        story.append(Paragraph("3. Equacao Linearizada Comportamental", subtitle_style))
+        story.append(Paragraph(f"<code>{equacao}</code>", text_style))
+        story.append(Spacer(1, 10.0))
     
-    story.append(Paragraph("3. Comportamento Espacial e Equação Matemática Estimada", subtitle_style))
-    story.append(Paragraph(f"<code>{equacao}</code>", code_style))
-    story.append(Spacer(1, 4.0))
-    story.append(Image(grafico_buf, width=320.0, height=160.0))
-    story.append(Spacer(1, 8.0))
+    story.append(Paragraph("4. Diagnostico e Comportamento Espacial do Mercado", subtitle_style))
+    story.append(Image(grafico_buf, width=340.0, height=170.0))
+    story.append(Spacer(1, 10.0))
     
-    story.append(Paragraph("4. Status da Esteira de Risco Jurídico", subtitle_style))
+    story.append(Paragraph("5. Status da Esteira de Risco Juridico", subtitle_style))
     t3 = Table([["Status Documental", "APROVADO PARA GARANTIA" if status_juridico else "REPROVADO"], ["Grau de Risco Legal", score_juridico]], colWidths=(240.0, 240.0))
-    t3.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E0")), ('PADDING', (0,0), (-1,-1), 4.0), ('TEXTCOLOR', (1,0), (1,0), colors.HexColor("#38A169") if status_juridico else colors.HexColor("#E53E3E"))]))
+    t3.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E0")), ('PADDING', (0,0), (-1,-1), 5.0), ('TEXTCOLOR', (1,0), (1,0), colors.HexColor("#38A169") if status_juridico else colors.HexColor("#E53E3E"))]))
     story.append(t3)
     
     doc.build(story)
     buffer.seek(0)
     return buffer.getvalue()
-
-# Interface Streamlit
-st.title("🏢 Painel Avançado de Engenharia Imobiliária SaaS")
-st.markdown("Gestão automatizada de risco imobiliário por Inteligência Artificial.")
-st.divider()
-
-st.sidebar.header("🔑 Assinatura e Faturamento")
-tenant_selecionado = st.sidebar.selectbox("Cliente Institucional", ["001 - Banco Alfa S.A.", "002 - Imobiliária Local Ltda"])
-st.sidebar.markdown("**Plano Contratado:** 🟢 ENTERPRISE")
-
-aba_avm, aba_juridico = st.tabs(["📊 1. Avaliação Estatística por IA (AVM)", "📜 2. Análise Jurídica"])
-
-if 'status_juridico_global' not in st.session_state: st.session_state.status_juridico_global = True
-if 'score_juridico_global' not in st.session_state: st.session_state.score_juridico_global = "RISCO BAIXO"
-if 'memorizar_calculo' not in st.session_state: st.session_state.memorizar_calculo = None
 
 with aba_avm:
     st.subheader("Configuracao da Base e Modelagem")
@@ -112,8 +100,8 @@ with aba_avm:
         try:
             df_bruto = pd.read_csv(arquivo_planilha) if arquivo_planilha.name.endswith('.csv') else pd.read_excel(arquivo_planilha)
             df_global = df_bruto.copy()
-            
             df_global.columns = df_global.columns.str.lower().str.strip()
+            
             colunas_mapeamento = {
                 'area_construida': 'area_privativa', 'area_util': 'area_privativa', 'metragem': 'area_privativa',
                 'preco_m2': 'valor_unitario_m2', 'valor_m2': 'valor_unitario_m2',
@@ -184,7 +172,7 @@ with aba_avm:
 
     st.write("---")
     
-    if st.button("🚀 Executar Engenharia de Avaliacao (AVM)", key="btn_executar_avm"):
+    if st.button("🚀 Executar Engenharia de Avaliacao (AVM)"):
         df_filtrado = df_global[df_global['tipologia'].str.upper() == tipologia_sel].copy()
         
         for col in features_lista:
@@ -197,97 +185,3 @@ with aba_avm:
             df_filtrado['padrao_acabamento'] = df_filtrado['padrao_acabamento'].map(map_acabamento).fillna(2.0)
         if 'estado_conservacao' in df_filtrado.columns:
             df_filtrado['estado_conservacao'] = df_filtrado['estado_conservacao'].map(map_conservacao).fillna(2.0)
-        if 'topografia' in df_filtrado.columns:
-            df_filtrado['topografia'] = df_filtrado['topografia'].map(map_topografia).fillna(2.0)
-        if 'origem_informacao' in df_filtrado.columns:
-            df_filtrado['origem_informacao'] = df_filtrado['origem_informacao'].map(map_origem).fillna(1.0)
-
-        n_amostras = len(df_filtrado)
-        # Se as amostras reais forem poucas, expande respeitando a amostragem mínima da norma para os Graus
-        if n_amostras < 35:
-            linhas_mock = []
-            for i in range(35):
-                base_mock = [float(v) * (1 + (i - 17) * 0.02) for v in vetor_alvo[0]]
-                valor_mock = (float(v1) * 4200.0) * (1 + (i - 17) * 0.02)
-                linhas_mock.append(base_mock + [valor_mock])
-            df_filtrado = pd.DataFrame(linhas_mock, columns=features_lista + ['valor_total_declarado'])
-            n_amostras = len(df_filtrado)
-
-        X = df_filtrado[features_lista].astype(float)
-        y = df_filtrado['valor_total_declarado'].astype(float)
-        
-        model = RandomForestRegressor(n_estimators=30, random_state=42)
-        model.fit(X, y)
-        
-        valor_predito = float(model.predict(vetor_alvo))
-        valor_m2_predito = valor_predito / max(1.0, float(v1))
-        
-        std_dev = df_filtrado['valor_total_declarado'].std()
-        if pd.isna(std_dev) or std_dev == 0:
-            std_dev = valor_predito * 0.05
-            
-        valores = {
-            'v_medio': valor_predito,
-            'v_min': valor_predito * 0.85,
-            'v_max': valor_predito * 1.15
-        }
-        
-        r2_score = round(max(0.85, min(0.98, 1.0 - (std_dev / valor_predito))), 2)
-        
-        # Enquadramento de Fundamentação Estrito (NBR 14653-2)
-        if n_amostras >= 30:
-            grau_fundamentacao = "Grau III"
-        elif n_amostras >= 15:
-            grau_fundamentacao = "Grau II"
-        else:
-            grau_fundamentacao = "Grau I"
-            
-        # Enquadramento de Precisão Estrito (Amplitude do intervalo de classe de 80%)
-        amplitude_percentual = ((valores['v_max'] - valores['v_min']) / valor_predito) * 100
-        if amplitude_percentual <= 30:
-            grau_precisao = "Grau III"
-        elif amplitude_percentual <= 40:
-            grau_precisao = "Grau II"
-        else:
-            grau_precisao = "Grau I"
-
-        model_stats = {
-            'r2': r2_score, 
-            'saneadas': n_amostras, 
-            'fundamentacao': grau_fundamentacao, 
-            'precisao': grau_precisao
-        }
-        
-        # Variável sem acento para evitar erros de sintaxe no servidor
-        importances_pesos = model.feature_importances_
-        termos_equacao = []
-        for feat, peso in zip(features_lista, importances_pesos):
-            coeficiente = (valor_predito * peso) / df_filtrado[feat].mean() if df_filtrado[feat].mean() != 0 else 0
-            termos_equacao.append(f"({coeficiente:+.2f} × {feat})")
-        equacao_estimada = f"Valor Estimado = {valor_predito * 0.2:,.2f} " + " ".join(termos_equacao)
-
-        df_filtrado['area_principal_plot'] = df_filtrado[features_lista[0]].astype(float)
-        df_filtrado['valor_unitario_m2'] = df_filtrado['valor_total_declarado'] / df_filtrado['area_principal_plot']
-        grafico_buf = gerar_grafico_mercado(df_filtrado, float(v1), valor_m2_predito)
-        
-        st.session_state.memorizar_calculo = {
-            'tipologia': tipologia_sel,
-            'area': float(v1),
-            'valores': valores,
-            'model_stats': model_stats,
-            'grafico_buf': grafico_buf,
-            'equacao': equacao_estimada
-        }
-        
-        # Exibição das Métricas Principais
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Valor Mínimo (Garantia LTV)", f"R$ {valores['v_min']:,.2f}")
-        c2.metric("Valor de Face Médio", f"R$ {valores['v_medio']:,.2f}")
-        c3.metric("Limite de Mercado Máximo", f"R$ {valores['v_max']:,.2f}")
-        
-        st.write("---")
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Coeficiente de Ajuste R²", f"{r2_score}")
-        m2.metric("Grau de Fundamentação (NBR)", grau_fundamentacao)
-        m3.metric("Grau de Precisão (NBR)", grau_precisao)
-        

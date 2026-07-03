@@ -11,20 +11,21 @@ import matplotlib.pyplot as plt
 
 st.set_page_config(page_title="Plataforma AVM SaaS - Engenharia", page_icon="🏢", layout="wide")
 
+# Base de dados sintética robusta de backup (Caso o upload falhe)
 @st.cache_data
 def carregar_base_multitipologia_padrao():
     dados = [
-        (450000.0, 6000.0, 120.0, 1200.0, 200.0, 2, 0, 3.0, "CASA"),
-        (480000.0, 6153.0, 125.0, 1250.0, 220.0, 2, 0, 3.0, "CASA"),
-        (510000.0, 6375.0, 130.0, 1300.0, 250.0, 2, 0, 3.2, "CASA"),
-        (750000.0, 8823.0, 185.0, 3200.0, 360.0, 3, 0, 3.5, "CASA"),
-        (820000.0, 8913.0, 192.0, 3300.0, 400.0, 3, 0, 3.5, "CASA"),
-        (350000.0, 5833.0, 60.0, 1500.0, 0.0, 1, 3, 2.7, "APARTAMENTO"),
-        (380000.0, 6129.0, 62.0, 1600.0, 0.0, 1, 5, 2.7, "APARTAMENTO"),
-        (420000.0, 6461.0, 65.0, 1800.0, 0.0, 2, 8, 2.8, "APARTAMENTO"),
-        (1200000.0, 2400.0, 500.0, 900.0, 800.0, 0, 0, 6.0, "GALPAO")
+        (450000.0, 120.0, 200.0, 1200.0, 2.0, 5.0, "CASA"),
+        (480000.0, 125.0, 220.0, 1250.0, 2.0, 6.0, "CASA"),
+        (510000.0, 130.0, 250.0, 1300.0, 3.0, 4.0, "CASA"),
+        (350000.0, 60.0, 1500.0, 1.0, 2.0, 2.0, "APARTAMENTO"),
+        (380000.0, 62.0, 1600.0, 1.0, 2.0, 2.0, "APARTAMENTO"),
+        (420000.0, 65.0, 1800.0, 2.0, 3.0, 3.0, "APARTAMENTO"),
+        (250000.0, 360.0, 2.0, 2026.0, 12.0, 1.0, "LOTE"),
+        (270000.0, 400.0, 2.0, 2026.0, 15.0, 1.0, "LOTE"),
+        (1200000.0, 500.0, 1000.0, 900.0, 2.0, 10.0, "GALPAO")
     ]
-    return pd.DataFrame(dados, columns=['valor_total_declarado', 'valor_unitario_m2', 'area_privativa', 'indice_fiscal', 'area_terreno', 'vagas_garagem', 'andares', 'pe_direito', 'tipologia'])
+    return pd.DataFrame(dados, columns=['valor_total_declarado', 'v1', 'v2', 'v3', 'v4', 'v5', 'tipologia'])
 
 def gerar_grafico_mercado(df_saneado, area_alvo, valor_estimado_m2):
     fig, ax = plt.subplots(figsize=(6, 3))
@@ -47,45 +48,42 @@ def gerar_laudo_pdf_ia(tenant, tipologia, area, valores, model_stats, status_jur
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40.0, leftMargin=40.0, topMargin=40.0, bottomMargin=40.0)
     story = []
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle('T1', parent=styles['Heading1'], fontSize=16, textColor=colors.HexColor("#1A365D"), spaceAfter=15.0)
-    subtitle_style = ParagraphStyle('T2', parent=styles['Heading2'], fontSize=11, textColor=colors.HexColor("#2B6CB0"), spaceAfter=8.0)
-    text_style = ParagraphStyle('T3', parent=styles['Normal'], fontSize=9, leading=13, spaceAfter=6.0)
-    code_style = ParagraphStyle('T4', parent=styles['Code'], fontSize=7.5, leading=10, textColor=colors.HexColor("#2D3748"), spaceAfter=6.0)
+    title_style = ParagraphStyle('T1', parent=styles['Heading1'], fontSize=15, textColor=colors.HexColor("#1A365D"), spaceAfter=12.0)
+    subtitle_style = ParagraphStyle('T2', parent=styles['Heading2'], fontSize=11, textColor=colors.HexColor("#2B6CB0"), spaceAfter=6.0)
+    text_style = ParagraphStyle('T3', parent=styles['Normal'], fontSize=8.5, leading=12, spaceAfter=5.0)
     
-    story.append(Paragraph("LAUDO TECNICO DE ENGENHARIA DE AVALIACOES POR IA", title_style))
-    story.append(Paragraph(f"<b>Instituicao Solicitante:</b> {tenant} | <b>Normativa:</b> ABNT NBR 14653-2", text_style))
-    story.append(Spacer(1, 10.0))
+    story.append(Paragraph("LAUDO TÉCNICO DE ENGENHARIA DE AVALIAÇÕES NBR 14653 por IA", title_style))
+    story.append(Paragraph(f"<b>Instituição Solicitante:</b> {tenant} | <b>Normativa Base:</b> ABNT NBR 14653-2", text_style))
+    story.append(Spacer(1, 8.0))
     
-    story.append(Paragraph("1. Escopo de Avaliacao Imobiliaria", subtitle_style))
-    t1 = Table([["Tipologia do Bem", tipologia, "Dimensao Principal", f"{area} m²"]], colWidths=(130.0, 110.0, 130.0, 110.0))
-    t1.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#F7FAFC")), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#E2E8F0")), ('PADDING', (0,0), (-1,-1), 5.0)]))
+    story.append(Paragraph("1. Escopo de Avaliação Imobiliária", subtitle_style))
+    t1 = Table([["Tipologia do Bem", tipologia, "Dimensão Principal", f"{area} m²"]], colWidths=(130.0, 110.0, 130.0, 110.0))
+    t1.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#F7FAFC")), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#E2E8F0")), ('PADDING', (0,0), (-1,-1), 4.0)]))
     story.append(t1)
-    story.append(Spacer(1, 10.0))
+    story.append(Spacer(1, 8.0))
     
-    story.append(Paragraph("2. Resultados do Motor de Machine Learning", subtitle_style))
+    story.append(Paragraph("2. Resultados do Motor Estatístico e Enquadramento de Norma", subtitle_style))
     t2 = Table([
-        ["Metrica de Cobertura do Risco", "Valor Comercial Admissivel"],
-        ["Margem Minima de Seguranca (Garantia LTV)", f"R$ {valores['v_min']:,.2f}"],
-        ["Valor de Face Estimado (Media)", f"R$ {valores['v_medio']:,.2f}"],
-        ["Limite de Mercado Maximo", f"R$ {valores['v_max']:,.2f}"]
+        ["Métrica de Cobertura do Risco", "Valor Comercial Admissível"],
+        ["Margem Mínima de Segurança (LTV)", f"R$ {valores['v_min']:,.2f}"],
+        ["Valor de Face Estimado (Média)", f"R$ {valores['v_medio']:,.2f}"],
+        ["Limite de Mercado Máximo", f"R$ {valores['v_max']:,.2f}"]
     ], colWidths=(240.0, 240.0))
-    t2.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor("#2B6CB0")), ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E0")), ('PADDING', (0,0), (-1,-1), 5.0)]))
+    t2.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor("#2B6CB0")), ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E0")), ('PADDING', (0,0), (-1,-1), 4.0)]))
     story.append(t2)
-    story.append(Spacer(1, 5.0))
+    story.append(Spacer(1, 4.0))
     
-    # Inclusão dos Graus da Norma no PDF
-    story.append(Paragraph(f"<b>Métricas de Enquadramento (NBR 14653):</b> R² = {model_stats['r2']} | Grau de Fundamentação: {model_stats['fundamentacao']} | Grau de Precisão: {model_stats['precisao']} | Amostras Saneadas = {model_stats['saneadas']}.", text_style))
-    story.append(Spacer(1, 10.0))
+    story.append(Paragraph(f"<b>Métricas NBR 14653:</b> Coeficiente R² = {model_stats['r2']} | Fundamentação: {model_stats['fundamentacao']} | Precisão: {model_stats['precisao']}", text_style))
+    story.append(Paragraph(f"<b>Equação Linearizada:</b> {equacao}", text_style))
+    story.append(Spacer(1, 8.0))
     
-    story.append(Paragraph("3. Comportamento Espacial do Mercado (Equacao Estimada)", subtitle_style))
-    story.append(Paragraph(f"<code>{equacao}</code>", code_style))
-    story.append(Spacer(1, 5.0))
+    story.append(Paragraph("3. Diagnóstico e Comportamento Espacial do Mercado", subtitle_style))
     story.append(Image(grafico_buf, width=340.0, height=170.0))
-    story.append(Spacer(1, 10.0))
+    story.append(Spacer(1, 8.0))
     
-    story.append(Paragraph("4. Status da Esteira de Risco Juridico", subtitle_style))
+    story.append(Paragraph("4. Status da Esteira de Risco Jurídico", subtitle_style))
     t3 = Table([["Status Documental", "APROVADO PARA GARANTIA" if status_juridico else "REPROVADO"], ["Grau de Risco Legal", score_juridico]], colWidths=(240.0, 240.0))
-    t3.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E0")), ('PADDING', (0,0), (-1,-1), 5.0), ('TEXTCOLOR', (1,0), (1,0), colors.HexColor("#38A169") if status_juridico else colors.HexColor("#E53E3E"))]))
+    t3.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E0")), ('PADDING', (0,0), (-1,-1), 4.0), ('TEXTCOLOR', (1,0), (1,0), colors.HexColor("#38A169") if status_juridico else colors.HexColor("#E53E3E"))]))
     story.append(t3)
     
     doc.build(story)
@@ -93,23 +91,23 @@ def gerar_laudo_pdf_ia(tenant, tipologia, area, valores, model_stats, status_jur
     return buffer.getvalue()
 
 # Interface Streamlit
-st.title("🏢 Painel Avancado de Engenharia Imobiliaria SaaS")
-st.markdown("Gestao automatizada de risco imobiliario por Inteligencia Artificial (Random Forest).")
+st.title("🏢 Painel Avançado de Engenharia Imobiliária SaaS")
+st.markdown("Gestão automatizada de risco imobiliário por Inteligência Artificial (Random Forest) - NBR 14653.")
 st.divider()
 
 st.sidebar.header("🔑 Assinatura e Faturamento")
 tenant_selecionado = st.sidebar.selectbox("Cliente Institucional", ["001 - Banco Alfa S.A.", "002 - Imobiliária Local Ltda"])
 st.sidebar.markdown("**Plano Contratado:** 🟢 ENTERPRISE (Acesso Total Liberado)")
 
-aba_avm, aba_juridico = st.tabs(["📊 1. Avaliacao Estatistica por IA (AVM)", "📜 2. Analise Juridica"])
+aba_avm, aba_juridico = st.tabs(["📊 1. Avaliação Estatística por IA (AVM)", "📜 2. Análise Jurídica"])
 
 if 'status_juridico_global' not in st.session_state: st.session_state.status_juridico_global = True
 if 'score_juridico_global' not in st.session_state: st.session_state.score_juridico_global = "RISCO BAIXO"
 if 'memorizar_calculo' not in st.session_state: st.session_state.memorizar_calculo = None
 
 with aba_avm:
-    st.subheader("Configuracao da Base e Modelagem")
-    arquivo_planilha = st.file_uploader("Arraste aqui a planilha consolidada de imoveis do banco (.xlsx ou .csv)", type=["xlsx", "csv"])
+    st.subheader("Configuração da Base e Modelagem")
+    arquivo_planilha = st.file_uploader("Arraste aqui a planilha consolidada de imóveis do banco (.xlsx ou .csv)", type=["xlsx", "csv"])
     
     if arquivo_planilha is not None:
         try:
@@ -128,11 +126,11 @@ with aba_avm:
             st.error(f"Erro na leitura da planilha: {e}. Carregando base simulada...")
             df_global = carregar_base_multitipologia_padrao()
     else:
-        st.info("💡 Modo de Demonstracao: Utilizando a base de dados sintetica.")
+        st.info("💡 Modo de Demonstração: Utilizando a base de dados sintética.")
         df_global = carregar_base_multitipologia_padrao()
 
     st.write("---")
-    tipologia_sel = st.selectbox("🎯 Selecione a Tipologia do Imovel Alvo para Configuracao:", ["CASA", "APARTAMENTO", "LOTE", "GALPAO"])
+    tipologia_sel = st.selectbox("🎯 Selecione a Tipologia do Imóvel Alvo para Configuração:", ["CASA", "APARTAMENTO", "LOTE", "GALPAO"])
     st.write("---")
     
     col1, col2, col3 = st.columns(3)
@@ -161,3 +159,9 @@ with aba_avm:
         v4 = map_conservacao[v4_texto]
         v5 = map_acabamento[v5_texto]
         features_lista = ['area_privativa', 'indice_fiscal', 'vagas_garagem', 'estado_conservacao', 'padrao_acabamento']
+        vetor_alvo = np.array([[float(v1), float(v2), float(v3), float(v4), float(v5)]], dtype=np.float64)
+
+    elif tipologia_sel == "LOTE":
+        v1 = col1.number_input("Área do Terreno (m²)", min_value=10.0, value=360.0)
+        v2_texto = col2.selectbox("Topografia", list(map_topografia.keys()), index=1)
+        v3 = col3.number_input("Data do Evento (Ano)", min_value=2000.0, value=2026.0)

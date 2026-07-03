@@ -104,57 +104,65 @@ st.sidebar.header("🔑 Assinatura e Faturamento")
 tenant_selecionado = st.sidebar.selectbox("Cliente Institucional", ["001 - Banco Alfa S.A.", "002 - Imobiliária Local Ltda"])
 st.sidebar.markdown("**Plano Ativo:** 🟢 ENTERPRISE")
 
-# Inicialização de variáveis seguras de sessão para retenção contínua dos cálculos
+aba_avm, aba_juridico = st.tabs(["📊 1. Avaliação Estatística por IA (AVM)", "📜 2. Análise Jurídica de Risco"])
+
 if 'status_juridico_global' not in st.session_state: st.session_state.status_juridico_global = True
 if 'score_juridico_global' not in st.session_state: st.session_state.score_juridico_global = "RISCO BAIXO"
 if 'memorizar_calculo' not in st.session_state: st.session_state.memorizar_calculo = None
 
-aba_avm, aba_juridico = st.tabs(["📊 1. Avaliação Estatística por IA (AVM)", "📜 2. Análise Jurídica de Risco"])
-
 with aba_avm:
-    # Criação do Formulário Homologado para travar o estado visual das métricas
-    with st.form(key="formulario_avm_obrigatorio"):
-        tipologia_sel = st.selectbox("🎯 Selecione a Tipologia do Imóvel Alvo:", ["CASA", "APARTAMENTO", "LOTE", "GALPAO"])
-        
-        arquivo_planilha = st.file_uploader("Arraste aqui a planilha de imóveis comparáveis (.xlsx ou .csv) [Opcional]", type=["xlsx", "csv"])
-        
-        st.write("---")
-        st.markdown("##### 📌 Atributos Específicos do Imóvel (Exatamente 5 Variáveis)")
-        col1, col2, col3 = st.columns(3)
-        
-        map_acabamento = {"Baixo": 1.0, "Normal": 2.0, "Alto": 3.0}
-        map_conservacao = {"Regular": 1.0, "Bom": 2.0, "Ótimo": 3.0}
-        map_topografia = {"Aclive": 1.0, "Plano": 2.0, "Declive": 3.0}
-        map_origem = {"Imobiliária": 1.0, "Proprietário": 2.0, "Banco": 3.0}
-        
-        if tipologia_sel == "CASA":
-            v1 = col1.number_input("Área Privativa (m²)", min_value=10.0, value=120.0, key="casa_v1")
-            v2 = col2.number_input("Área do Terreno (m²)", min_value=10.0, value=200.0, key="casa_v2")
-            v3 = col3.number_input("Índice Fiscal da Quadra", min_value=0.0, value=1200.0, key="casa_v3")
-            v4_txt = col1.selectbox("Padrão de Acabamento", list(map_acabamento.keys()), index=1, key="casa_v4")
-            v5 = col2.number_input("Idade Aparente (Anos)", min_value=0.0, value=5.0, key="casa_v5")
-            v4 = map_acabamento[v4_txt]
-            features_lista = ['area_privativa', 'area_terreno', 'indice_fiscal', 'padrao_acabamento', 'idade_aparente']
+    tipologia_sel = st.selectbox("🎯 Selecione a Tipologia do Imóvel Alvo:", ["CASA", "APARTAMENTO", "LOTE", "GALPAO"])
+    
+    arquivo_planilha = st.file_uploader("Arraste aqui a planilha de imóveis comparáveis (.xlsx ou .csv) [Opcional]", type=["xlsx", "csv"])
+    
+    df_global = carregar_base_multitipologia_padrao()
+    
+    if arquivo_planilha is not None:
+        try:
+            if arquivo_planilha.name.endswith('.csv'):
+                df_carregado = pd.read_csv(arquivo_planilha)
+            else:
+                df_carregado = pd.read_excel(arquivo_planilha)
+                
+            df_carregado.columns = df_carregado.columns.str.lower().str.strip()
+            colunas_mapeamento = {
+                'area_construida': 'area_privativa', 'area_util': 'area_privativa', 'metragem': 'area_privativa',
+                'preco': 'valor_total_declarado', 'valor': 'valor_total_declarado'
+            }
+            df_carregado.rename(columns=colunas_mapeamento, inplace=True)
+            df_global = df_carregado
+            st.success(f"🟩 PLANILHA VALIDADA COM SUCESSO: {len(df_global)} registros encontrados!")
+        except Exception as e:
+            st.error(f"Erro na leitura. Usando banco de contingência. Detalhes: {e}")
 
-        elif tipologia_sel == "APARTAMENTO":
-            v1 = col1.number_input("Área Privativa (m²)", min_value=10.0, value=80.0, key="ap_v1")
-            v2 = col2.number_input("Índice Fiscal da Quadra", min_value=0.0, value=1500.0, key="ap_v2")
-            v3 = col3.number_input("Vagas de Garagem (Unidades)", min_value=0.0, value=1.0, key="ap_v3")
-            v4_txt = col1.selectbox("Estado de Conservação", list(map_conservacao.keys()), index=1, key="ap_v4")
-            v5_txt = col2.selectbox("Padrão de Acabamento", list(map_acabamento.keys()), index=1, key="ap_v5")
-            v4 = map_conservacao[v4_txt]
-            v5 = map_acabamento[v5_txt]
-            features_lista = ['area_privativa', 'indice_fiscal', 'vagas_garagem', 'estado_conservacao', 'padrao_acabamento']
+    st.write("---")
+    st.markdown("##### 📌 Atributos Específicos do Imóvel (Exatamente 5 Variáveis)")
+    col1, col2, col3 = st.columns(3)
+    
+    map_acabamento = {"Baixo": 1.0, "Normal": 2.0, "Alto": 3.0}
+    map_conservacao = {"Regular": 1.0, "Bom": 2.0, "Ótimo": 3.0}
+    map_topografia = {"Aclive": 1.0, "Plano": 2.0, "Declive": 3.0}
+    map_origem = {"Imobiliária": 1.0, "Proprietário": 2.0, "Banco": 3.0}
+    
+    if tipologia_sel == "CASA":
+        v1 = col1.number_input("Área Privativa (m²)", min_value=10.0, value=120.0, key="casa_v1")
+        v2 = col2.number_input("Área do Terreno (m²)", min_value=10.0, value=200.0, key="casa_v2")
+        v3 = col3.number_input("Índice Fiscal da Quadra", min_value=0.0, value=1200.0, key="casa_v3")
+        v4_txt = col1.selectbox("Padrão de Acabamento", list(map_acabamento.keys()), index=1, key="casa_v4")
+        v5 = col2.number_input("Idade Aparente (Anos)", min_value=0.0, value=5.0, key="casa_v5")
+        v4 = map_acabamento[v4_txt]
+        features_lista = ['area_privativa', 'area_terreno', 'indice_fiscal', 'padrao_acabamento', 'idade_aparente']
 
-        elif tipologia_sel == "LOTE":
-            v1 = col1.number_input("Área do Terreno (m²)", min_value=10.0, value=360.0, key="lote_v1")
-            v2_txt = col2.selectbox("Topografia", list(map_topografia.keys()), index=1, key="lote_v2")
-            v3 = col3.number_input("Data do Evento (Ano Coleta)", min_value=2000.0, value=2026.0, key="lote_v3")
-            v4 = col1.number_input("Testada / Frente (m)", min_value=0.0, value=12.0, key="lote_v4")
-            v5_txt = col2.selectbox("Origem da Informação", list(map_origem.keys()), index=0, key="lote_v5")
-            v2 = map_topografia[v2_txt]
-            v5 = map_origem[v5_txt]
-            features_lista = ['area_terreno', 'topografia', 'data_evento', 'frente', 'origem_informacao']
+    elif tipologia_sel == "APARTAMENTO":
+        v1 = col1.number_input("Área Privativa (m²)", min_value=10.0, value=80.0, key="ap_v1")
+        v2 = col2.number_input("Índice Fiscal da Quadra", min_value=0.0, value=1500.0, key="ap_v2")
+        v3 = col3.number_input("Vagas de Garagem (Unidades)", min_value=0.0, value=1.0, key="ap_v3")
+        v4_txt = col1.selectbox("Estado de Conservação", list(map_conservacao.keys()), index=1, key="ap_v4")
+        v5_txt = col2.selectbox("Padrão de Acabamento", list(map_acabamento.keys()), index=1, key="ap_v5")
+        v4 = map_conservacao[v4_txt]
+        v5 = map_acabamento[v5_txt]
+        features_lista = ['area_privativa', 'indice_fiscal', 'vagas_garagem', 'estado_conservacao', 'padrao_acabamento']
 
-        elif tipologia_sel == "GALPAO":
-            v1 = col1.number_input("Área Privativa (m²)", min_value=10.0, value=500.0, key="gal_v1")
+    elif tipologia_sel == "LOTE":
+        v1 = col1.number_input("Área do Terreno (m²)", min_value=10.0, value=360.0, key="lote_v1")
+        v2_txt = col2.selectbox("Topografia", list(map_topografia.keys()), index=1, key="lote_v2")

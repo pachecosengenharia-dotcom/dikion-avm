@@ -166,7 +166,7 @@ with aba_avm:
 
     st.write("---")
     
-    if st.button("🚀 Executar Engenharia de Avaliacao (AVM)"):
+        if st.button("🚀 Executar Engenharia de Avaliacao (AVM)"):
         # Se a coluna tipologia foi criada artificialmente, força ela a bater com a seleção atual da tela
         if 'tipologia' in df_global.columns and df_global['tipologia'].eq('CASA').all() and tipologia_sel != 'CASA':
             df_filtrado = df_global.copy()
@@ -179,7 +179,17 @@ with aba_avm:
             df_filtrado = carregar_base_multitipologia_padrao()
             df_filtrado = df_filtrado[df_filtrado['tipologia'] == tipologia_sel]
             
-        features = ['area_privativa', 'indice_fiscal', 'area_terreno', 'vagas_garagem', 'andares', 'pe_direito']
+        # 1. SELEÇÃO DINÂMICA DE VARIÁVEIS CONFORME A TIPOLOGIA
+        if tipologia_sel == "CASA":
+            features = ['area_privativa', 'indice_fiscal', 'area_terreno', 'vagas_garagem']
+            vetor_alvo = np.array([[area_alvo, indice_alvo, area_terreno_valor, vagas_valor]])
+        elif tipologia_sel == "APARTAMENTO":
+            features = ['area_privativa', 'indice_fiscal', 'andares', 'vagas_garagem']
+            vetor_alvo = np.array([[area_alvo, indice_alvo, andar_valor, vagas_valor]])
+        else: # GALPAO
+            features = ['area_privativa', 'indice_fiscal', 'pe_direito', 'area_terreno']
+            vetor_alvo = np.array([[area_alvo, indice_alvo, pe_direito_valor, area_terreno_valor]])
+            
         X = df_filtrado[features]
         y = df_filtrado['valor_total_declarado']
         
@@ -187,7 +197,7 @@ with aba_avm:
         model = RandomForestRegressor(n_estimators=n_estimators, random_state=42)
         model.fit(X, y)
         
-        vetor_alvo = np.array([[area_alvo, indice_alvo, area_terreno_valor, vagas_valor, andar_valor, pe_direito_valor]])
+        # Predição com o vetor rigorosamente limpo e específico
         valor_predito = float(model.predict(vetor_alvo))
         valor_m2_predito = valor_predito / area_alvo
         

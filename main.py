@@ -17,10 +17,9 @@ st.set_page_config(page_title="Plataforma AVM SaaS - Engenharia", page_icon="�
 
 @st.cache_data
 def carregar_base_multitipologia_padrao():
-    """Garante amostras base para treinamento caso o usuário não envie uma planilha ou a planilha falhe."""
+    """Garante amostras base para treinamento caso o usuário não envie uma planilha."""
     dados = []
-    # Amostras estruturadas para atender aos critérios mínimos da norma
-    for i in range(7):
+    for i in range(8):
         dados.append((300000.0 + (i*50000), 5000.0, 100.0 + (i*15), 1100.0 + (i*50), 180.0 + (i*20), 2.0, 1.0, "CASA"))
         dados.append((250000.0 + (i*40000), 5500.0, 70.0 + (i*10), 1400.0 + (i*40), 2.0, 2.0, 1.0, "APARTAMENTO"))
         dados.append((150000.0 + (i*30000), 1000.0, 300.0 + (i*30), 2.0, 2026.0, 12.0, 1.0, "LOTE"))
@@ -30,10 +29,9 @@ def carregar_base_multitipologia_padrao():
     return pd.DataFrame(dados, columns=colunas)
 
 def gerar_grafico_mercado(df_saneado, area_alvo, valor_estimado_m2):
-    """Gera vetor gráfico de dispersão mercadológica."""
     fig, ax = plt.subplots(figsize=(6, 3))
-    ax.scatter(df_saneado['v1'], df_saneado['valor_unitario_m2'], color='#2B6CB0', alpha=0.7, label='Amostras de Mercado')
-    ax.scatter(area_alvo, valor_estimado_m2, color='#E53E3E', marker='*', s=200, label='Imóvel Avaliado')
+    ax.scatter(df_saneado['v1'], df_saneado['valor_unitario_m2'], color='#2B6CB0', alpha=0.7, label='Amostras')
+    ax.scatter(area_alvo, valor_estimado_m2, color='#E53E3E', marker='*', s=200, label='Avaliado')
     ax.set_title('Dispersão do Mercado (Área Principal vs Preço m²)', fontsize=10, fontweight='bold', color='#1A365D')
     ax.set_xlabel('Dimensão / Área Principal', fontsize=8)
     ax.set_ylabel('Preço Unitário (R$/m²)', fontsize=8)
@@ -47,7 +45,6 @@ def gerar_grafico_mercado(df_saneado, area_alvo, valor_estimado_m2):
     return img_buf
 
 def gerar_laudo_pdf_ia(tenant, tipologia, area, valores, model_stats, status_juridico, score_juridico, grafico_buf, equacao):
-    """Gera laudo de avaliação técnica oficial aderente às diretrizes executivas."""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40.0, leftMargin=40.0, topMargin=40.0, bottomMargin=40.0)
     story = []
@@ -108,40 +105,26 @@ st.divider()
 
 st.sidebar.header("🔑 Assinatura e Faturamento")
 tenant_selecionado = st.sidebar.selectbox("Cliente Institucional", ["001 - Banco Alfa S.A.", "002 - Imobiliária Local Ltda"])
-st.sidebar.markdown("**Plano Ativo:** 🟢 ENTERPRISE (Acesso Total Liberado)")
+st.sidebar.markdown("**Plano Ativo:** 🟢 ENTERPRISE")
 
 aba_avm, aba_juridico = st.tabs(["📊 1. Avaliação Estatística por IA (AVM)", "📜 2. Análise Jurídica de Risco"])
 
-# Inicialização de variáveis globais de estado
+# Inicialização de estados
 if 'status_juridico_global' not in st.session_state: st.session_state.status_juridico_global = True
 if 'score_juridico_global' not in st.session_state: st.session_state.score_juridico_global = "RISCO BAIXO"
 if 'memorizar_calculo' not in st.session_state: st.session_state.memorizar_calculo = None
 
 with aba_avm:
-    st.subheader("Configuração da Base de Dados de Entrada")
-    arquivo_planilha = st.file_uploader("Arraste aqui a planilha de imóveis comparáveis (.xlsx ou .csv)", type=["xlsx", "csv"])
-    
-    # Processamento padrão do arquivo carregado
-    df_global = carregar_base_multitipologia_padrao()
-    if arquivo_planilha is not None:
-        try:
-            df_carregado = pd.read_csv(arquivo_planilha) if arquivo_planilha.name.endswith('.csv') else pd.read_excel(arquivo_planilha)
-            df_carregado.columns = df_carregado.columns.str.lower().str.strip()
-            
-            colunas_mapeamento = {
-                'area_construida': 'area_privativa', 'area_util': 'area_privativa', 'metragem': 'area_privativa',
-                'preco_m2': 'valor_unitario_m2', 'valor_m2': 'valor_unitario_m2',
-                'preco': 'valor_total_declarado', 'valor': 'valor_total_declarado',
-                'padrao': 'padrao_acabamento', 'conservacao': 'estado_conservacao', 'idade': 'idade_aparente'
-            }
-            df_carregado.rename(columns=colunas_mapeamento, inplace=True)
-            df_global = df_carregado
-            st.success(f"🟩 Planilha processada: {len(df_global)} imóveis carregados com sucesso!")
-        except Exception as e:
-            st.error(f"Falha na leitura. Usando banco sintético operacional. Erro: {e}")
-
-    st.write("---")
+    # ----------------------------------------------------
+    # POSICIONAMENTO CRÍTICO E FIXO NO TOPO DA TELA
+    # ----------------------------------------------------
     tipologia_sel = st.selectbox("🎯 Selecione a Tipologia do Imóvel Alvo:", ["CASA", "APARTAMENTO", "LOTE", "GALPAO"])
+    
+    # BOTÃO TOTALMENTE DESTACADO E SEM ANINHAMENTO CONDICIONAL
+    botao_calcular = st.button("🚀 CALCULAR AVALIAÇÃO IMOBILIÁRIA", use_container_width=True)
+    
+    st.write("---")
+    arquivo_planilha = st.file_uploader("Arraste aqui a planilha de imóveis comparáveis (.xlsx ou .csv) [Opcional]", type=["xlsx", "csv"])
     st.write("---")
     
     st.markdown("##### 📌 Atributos Específicos do Imóvel (Exatamente 5 Variáveis)")
@@ -164,3 +147,20 @@ with aba_avm:
     elif tipologia_sel == "APARTAMENTO":
         v1 = col1.number_input("Área Privativa (m²)", min_value=10.0, value=80.0, key="ap_v1")
         v2 = col2.number_input("Índice Fiscal da Quadra", min_value=0.0, value=1500.0, key="ap_v2")
+        v3 = col3.number_input("Vagas de Garagem (Unidades)", min_value=0.0, value=1.0, key="ap_v3")
+        v4_txt = col1.selectbox("Estado de Conservação", list(map_conservacao.keys()), index=1, key="ap_v4")
+        v5_txt = col2.selectbox("Padrão de Acabamento", list(map_acabamento.keys()), index=1, key="ap_v5")
+        v4 = map_conservacao[v4_txt]
+        v5 = map_acabamento[v5_txt]
+        features_lista = ['area_privativa', 'indice_fiscal', 'vagas_garagem', 'estado_conservacao', 'padrao_acabamento']
+
+    elif tipologia_sel == "LOTE":
+        v1 = col1.number_input("Área do Terreno (m²)", min_value=10.0, value=360.0, key="lote_v1")
+        v2_txt = col2.selectbox("Topografia", list(map_topografia.keys()), index=1, key="lote_v2")
+        v3 = col3.number_input("Data do Evento (Ano Coleta)", min_value=2000.0, value=2026.0, key="lote_v3")
+        v4 = col1.number_input("Testada / Frente (m)", min_value=0.0, value=12.0, key="lote_v4")
+        v5_txt = col2.selectbox("Origem da Informação", list(map_origem.keys()), index=0, key="lote_v5")
+        v2 = map_topografia[v2_txt]
+        v5 = map_origem[v5_txt]
+        features_lista = ['area_terreno', 'topografia', 'data_evento', 'frente', 'origem_informacao']
+

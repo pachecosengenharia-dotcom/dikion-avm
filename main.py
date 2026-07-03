@@ -61,6 +61,9 @@ if 'memorizar_calculo' not in st.session_state: st.session_state.memorizar_calcu
 if 'status_jur' not in st.session_state: st.session_state.status_jur = True
 if 'score_jur' not in st.session_state: st.session_state.score_jur = "RISCO BAIXO"
 
+# Inicialização de segurança para evitar o erro de variáveis inexistentes no carregamento inicial
+v1, v2, v3, v4, v5 = None, None, None, None, None
+
 tipologia_sel = st.selectbox("🎯 Selecione a Tipologia do Imóvel Alvo:", ["CASA", "APARTAMENTO", "LOTE", "GALPAO"])
 botao_calcular = st.button("🚀 CALCULAR AVALIAÇÃO IMOBILIÁRIA (AVM)", use_container_width=True)
 st.write("---")
@@ -98,10 +101,8 @@ else:
     v4 = m_acab[col1.selectbox("Padrão de Acabamento", list(m_acab.keys()), index=1, key="g4")]
     v5 = col2.number_input("Idade Aparente (Anos)", min_value=0.0, value=10.0, key="g5")
 
-# ----------------------------------------------------------------------
-# SOLUÇÃO DO BUG: TODA A LOGICA FOI ISOLADA RIGOROSAMENTE DENTRO DO IF
-# ----------------------------------------------------------------------
-if botao_calcular:
+# TRAVA DE SEGURANÇA MÁXIMA: Os cálculos matemáticos agora só executam estritamente após o clique do botão
+if botao_calcular and v1 is not None:
     df_filtrado = carregar_base_padrao()
     X = df_filtrado[['v1', 'v2', 'v3', 'v4', 'v5']].values.astype(np.float64)
     y = df_filtrado['valor_total_declarado'].values.astype(np.float64)
@@ -126,7 +127,7 @@ if botao_calcular:
         'fund': g_fund, 'prec': g_prec, 'r2': 0.94, 'eq': equacao, 'img': buf_graficos, 'v1': float(v1)
     }
 
-# Renderização estável dos resultados coletados em tela
+# Exibição segura e estável das informações em tela
 if st.session_state.memorizar_calculo is not None:
     res = st.session_state.memorizar_calculo
     st.write("---")

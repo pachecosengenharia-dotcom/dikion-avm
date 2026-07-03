@@ -16,8 +16,8 @@ st.set_page_config(page_title="Plataforma AVM SaaS", page_icon="🏢", layout="w
 # ==========================================
 def carregar_base_padrao():
     lines = []
-    for i in range(8):
-        lines.append([100.0 + (i*15), 200.0 + (i*20), 1200.0 + (i*50), 2.0, 5.0, (100.0 + (i*15)) * 4300.0])
+    for i in range(10):
+        lines.append([100.0 + (i * 15), 200.0 + (i * 20), 1200.0 + (i * 50), 2.0, 5.0, (100.0 + (i * 15)) * 4300.0])
     return pd.DataFrame(lines, columns=['v1', 'v2', 'v3', 'v4', 'v5', 'valor_total_declarado'])
 
 def gerar_pdf(tenant, tipo, area, valores, stats, status_jur, score_jur, equacao):
@@ -75,74 +75,73 @@ if tipologia_sel == "CASA":
     v1 = col1.number_input("Área Privativa (m²)", min_value=10.0, value=120.0, key="c1")
     v2 = col2.number_input("Área do Terreno (m²)", min_value=10.0, value=200.0, key="c2")
     v3 = col3.number_input("Índice Fiscal da Quadra", min_value=0.0, value=1200.0, key="c3")
-    v4_txt = col1.selectbox("Padrão de Acabamento", list(m_acab.keys()), index=1, key="c4")
+    v4 = m_acab[col1.selectbox("Padrão de Acabamento", list(m_acab.keys()), index=1, key="c4")]
     v5 = col2.number_input("Idade Aparente (Anos)", min_value=0.0, value=5.0, key="c5")
-    v4 = m_acab[v4_txt]
 elif tipologia_sel == "APARTAMENTO":
     v1 = col1.number_input("Área Privativa (m²)", min_value=10.0, value=80.0, key="a1")
     v2 = col2.number_input("Índice Fiscal da Quadra", min_value=0.0, value=1500.0, key="a2")
     v3 = col3.number_input("Vagas de Garagem (Unidades)", min_value=0.0, value=1.0, key="a3")
-    v4_txt = col1.selectbox("Estado de Conservação", list(m_cons.keys()), index=1, key="a4")
-    v5_txt = col2.selectbox("Padrão de Acabamento", list(m_acab.keys()), index=1, key="a5")
-    v4 = m_cons[v4_txt]
-    v5 = m_acab[v5_txt]
+    v4 = m_cons[col1.selectbox("Estado de Conservação", list(m_cons.keys()), index=1, key="a4")]
+    v5 = m_acab[col2.selectbox("Padrão de Acabamento", list(m_acab.keys()), index=1, key="a5")]
 elif tipologia_sel == "LOTE":
     v1 = col1.number_input("Área do Terreno (m²)", min_value=10.0, value=360.0, key="l1")
-    v2_txt = col2.selectbox("Topografia do Lote", list(m_topo.keys()), index=1, key="l2")
+    v2 = m_topo[col2.selectbox("Topografia do Lote", list(m_topo.keys()), index=1, key="l2")]
     v3 = col3.number_input("Data do Evento (Ano Coleta)", min_value=2000.0, value=2026.0, key="l3")
     v4 = col1.number_input("Testada / Frente (m)", min_value=0.0, value=12.0, key="l4")
-    v5_txt = col2.selectbox("Origem da Informação", list(m_orig.keys()), index=0, key="l5")
-    v2 = m_topo[v2_txt]
-    v5 = m_orig[v5_txt]
+    v5 = m_orig[col2.selectbox("Origem da Informação", list(m_orig.keys()), index=0, key="l5")]
 else:
     v1 = col1.number_input("Área Privativa (m²)", min_value=10.0, value=500.0, key="g1")
     v2 = col2.number_input("Área do Terreno (m²)", min_value=10.0, value=1000.0, key="g2")
     v3 = col3.number_input("Índice Fiscal da Quadra", min_value=0.0, value=900.0, key="g3")
-    v4_txt = col1.selectbox("Padrão de Acabamento", list(m_acab.keys()), index=1, key="g4")
+    v4 = m_acab[col1.selectbox("Padrão de Acabamento", list(m_acab.keys()), index=1, key="g4")]
     v5 = col2.number_input("Idade Aparente (Anos)", min_value=0.0, value=10.0, key="g5")
-    v4 = m_acab[v4_txt]
 
 # ==========================================
-# 3. COMPUTAÇÃO E EQUACIONAMENTO MATEMÁTICO
+# 3. COMPUTAÇÃO E TRATAMENTO ANTI-BUG
 # ==========================================
-# REESTRUTURAÇÃO COMPLETA: O vetor_alvo agora só é montado após o clique confirmar os dados
 if botao_calcular:
-    df_filtrado = carregar_base_padrao()
-    X = df_filtrado[['v1', 'v2', 'v3', 'v4', 'v5']].astype(float)
-    y = df_filtrado['valor_total_declarado'].astype(float)
-    
-    model = RandomForestRegressor(n_estimators=30, random_state=42).fit(X, y)
-    
-    # Montagem e inferência do vetor completamente isoladas dentro do escopo do clique
-    vetor_alvo = np.array([[float(v1), float(v2), float(v3), float(v4), float(v5)]], dtype=np.float64)
-    val_medio = float(model.predict(vetor_alvo))
-    
-    std_dev = df_filtrado['valor_total_declarado'].std() or (val_medio * 0.08)
-    val_min, val_max = max(val_medio - (std_dev * 0.35), val_medio * 0.85), val_medio + (std_dev * 0.35)
-    
-    amp = ((val_max - val_min) / val_medio) * 100
-    g_fund = "Grau III (Máximo)" if len(df_filtrado) >= 5 else "Grau II"
-    g_prec = "Grau III (Máximo)" if amp <= 30.0 else "Grau II"
-    
-    # Processamento individualizado das variáveis de importância
-    imp = model.feature_importances_
-    termos = [f"({float(p)*100:.1f}% × V{i+1})" for i, p in enumerate(imp)]
-    equacao = f"Valor = {val_medio*0.15:,.2f} + " + " + ".join(termos)
-    
-    fig, ax = plt.subplots(figsize=(5, 1.8))
-    ax.scatter(df_filtrado['v1'], df_filtrado['valor_total_declarado']/df_filtrado['v1'], color='#2B6CB0', alpha=0.6, label='Mercado')
-    ax.scatter(v1, val_medio/v1, color='#E53E3E', marker='*', s=150, label='Avaliado')
-    ax.set_title('Dispersão Homologada (Preço m² vs Área)', fontsize=8, fontweight='bold')
-    plt.tight_layout()
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png', dpi=150)
-    buf.seek(0)
-    plt.close(fig)
+    try:
+        df_filtrado = carregar_base_padrao()
+        X = df_filtrado[['v1', 'v2', 'v3', 'v4', 'v5']].values.astype(np.float64)
+        y = df_filtrado['valor_total_declarado'].values.astype(np.float64)
+        
+        model = RandomForestRegressor(n_estimators=30, random_state=42)
+        model.fit(X, y)
+        
+        # Rigorosa formatação em matriz float64 bidimensional (Evita o TypeError)
+        vetor_alvo = np.array([[float(v1), float(v2), float(v3), float(v4), float(v5)]], dtype=np.float64)
+        
+        val_predito = model.predict(vetor_alvo)
+        val_medio = float(val_predito[0])
+        
+        std_dev = float(df_filtrado['valor_total_declarado'].std()) or (val_medio * 0.08)
+        val_min, val_max = max(val_medio - (std_dev * 0.35), val_medio * 0.85), val_medio + (std_dev * 0.35)
+        
+        amp = ((val_max - val_min) / val_medio) * 100
+        g_fund = "Grau III (Máximo)" if len(df_filtrado) >= 5 else "Grau II"
+        g_prec = "Grau III (Máximo)" if amp <= 30.0 else "Grau II"
+        
+        imp = model.feature_importances_
+        termos = [f"({float(p)*100:.1f}% × V{i+1})" for i, p in enumerate(imp)]
+        equacao = f"Valor = {val_medio*0.15:,.2f} + " + " + ".join(termos)
+        
+        fig, ax = plt.subplots(figsize=(5, 1.8))
+        ax.scatter(df_filtrado['v1'].values, df_filtrado['valor_total_declarado'].values / df_filtrado['v1'].values, color='#2B6CB0', alpha=0.6, label='Mercado')
+        ax.scatter(float(v1), val_medio / float(v1), color='#E53E3E', marker='*', s=150, label='Avaliado')
+        ax.set_title('Dispersão Homologada (Preço m² vs Área)', fontsize=8, fontweight='bold')
+        plt.tight_layout()
+        
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', dpi=150)
+        buf.seek(0)
+        plt.close(fig)
 
-    st.session_state.memorizar_calculo = {
-        'v_min': val_min, 'v_medio': val_medio, 'v_max': val_max,
-        'fund': g_fund, 'prec': g_prec, 'r2': 0.94, 'eq': equacao, 'img': buf, 'v1': v1
-    }
+        st.session_state.memorizar_calculo = {
+            'v_min': val_min, 'v_medio': val_medio, 'v_max': val_max,
+            'fund': g_fund, 'prec': g_prec, 'r2': 0.94, 'eq': equacao, 'img': buf, 'v1': float(v1)
+        }
+    except Exception as e:
+        st.error(f"Erro crítico no processamento matemático: {e}")
 
 # ==========================================
 # 4. RENDERIZAÇÃO E RETENÇÃO EM TELA
@@ -176,4 +175,3 @@ if st.session_state.memorizar_calculo is not None:
     st.sidebar.subheader("📥 Emissão do Laudo Técnico")
     res = st.session_state.memorizar_calculo
     pdf_laudo = gerar_pdf(tenant_selecionado, tipologia_sel, res['v1'], res, res, st.session_state.status_jur, st.session_state.score_jur, res['eq'])
-    

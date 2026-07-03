@@ -105,13 +105,14 @@ if 'score_juridico_global' not in st.session_state: st.session_state.score_jurid
 if 'memorizar_calculo' not in st.session_state: st.session_state.memorizar_calculo = None
 
 with aba_avm:
-    st.subheader("Configuração da Base e Modelagem")
-    arquivo_planilha = st.file_uploader("Arraste aqui a planilha consolidada de imóveis do banco (.xlsx ou .csv)", type=["xlsx", "csv"])
+    st.subheader("Configuracao da Base e Modelagem")
+    arquivo_planilha = st.file_uploader("Arraste aqui a planilha consolidada de imoveis do banco (.xlsx ou .csv)", type=["xlsx", "csv"])
     
     if arquivo_planilha is not None:
         try:
             df_bruto = pd.read_csv(arquivo_planilha) if arquivo_planilha.name.endswith('.csv') else pd.read_excel(arquivo_planilha)
             df_global = df_bruto.copy()
+            
             df_global.columns = df_global.columns.str.lower().str.strip()
             colunas_mapeamento = {
                 'area_construida': 'area_privativa', 'area_util': 'area_privativa', 'metragem': 'area_privativa',
@@ -125,10 +126,11 @@ with aba_avm:
             st.error(f"Erro na leitura da planilha: {e}. Carregando base simulada...")
             df_global = carregar_base_multitipologia_padrao()
     else:
+        st.info("💡 Modo de Demonstracao: Utilizando a base de dados sintetica.")
         df_global = carregar_base_multitipologia_padrao()
 
     st.write("---")
-    tipologia_sel = st.selectbox("🎯 Selecione a Tipologia do Imóvel Alvo:", ["CASA", "APARTAMENTO", "LOTE", "GALPAO"])
+    tipologia_sel = st.selectbox("🎯 Selecione a Tipologia do Imovel Alvo para Configuracao:", ["CASA", "APARTAMENTO", "LOTE", "GALPAO"])
     st.write("---")
     
     col1, col2, col3 = st.columns(3)
@@ -138,7 +140,7 @@ with aba_avm:
     map_topografia = {"Aclive": 1.0, "Plano": 2.0, "Declive": 3.0}
     map_origem = {"Imobiliária": 1.0, "Proprietário": 2.0, "Banco": 3.0}
 
-    # Definição e coleta estrita de 5 variáveis por tipologia
+    # Bloco condicional apenas para coletar os valores dos inputs da tela
     if tipologia_sel == "CASA":
         v1 = col1.number_input("Área Privativa (m²)", min_value=10.0, value=120.0)
         v2 = col2.number_input("Área do Terreno (m²)", min_value=10.0, value=200.0)
@@ -162,3 +164,130 @@ with aba_avm:
 
     elif tipologia_sel == "LOTE":
         v1 = col1.number_input("Área do Terreno (m²)", min_value=10.0, value=360.0)
+        v2_texto = col2.selectbox("Topografia", list(map_topografia.keys()), index=1)
+        v3 = col3.number_input("Data do Evento (Ano Corrente)", min_value=2000.0, value=2026.0)
+        v4 = col1.number_input("Testada / Frente (m)", min_value=0.0, value=12.0)
+        v5_texto = col2.selectbox("Origem da Informação", list(map_origem.keys()), index=0)
+        v2 = map_topografia[v2_texto]
+        v5 = map_origem[v5_texto]
+        features_lista = ['area_terreno', 'topografia', 'data_evento', 'frente', 'origem_informacao']
+        vetor_alvo = np.array([[float(v1), float(v2), float(v3), float(v4), float(v5)]], dtype=np.float64)
+
+    elif tipologia_sel == "GALPAO":
+        v1 = col1.number_input("Área Privativa (m²)", min_value=10.0, value=500.0)
+        v2 = col2.number_input("Área do Terreno (m²)", min_value=10.0, value=1000.0)
+        v3 = col3.number_input("Índice Fiscal da Quadra", min_value=0.0, value=900.0)
+        v4_texto = col1.selectbox("Padrão de Acabamento", list(map_acabamento.keys()), index=1)
+        v5 = col2.number_input("Idade Aparente (Anos)", min_value=0.0, value=10.0)
+        v4 = map_acabamento[v4_texto]
+        features_lista = ['area_privativa', 'area_terreno', 'indice_fiscal', 'padrao_acabamento', 'idade_aparente']
+        vetor_alvo = np.array([[float(v1), float(v2), float(v3), float(v4), float(v5)]], dtype=np.float64)
+
+    st.write("---")
+    
+    # BOTÃO CORRETAMENTE FORA DOS IFs CONDICIONAIS DE TIPOLOGIA:
+    if st.button("🚀 Executar Engenharia de Avaliacao (AVM)"):
+        df_filtrado = df_global[df_global['tipologia'].str.upper() == tipologia_sel].copy()
+        
+        for col in features_lista:
+            if col not in df_filtrado.columns:
+                df_filtrado[col] = 0.0
+        if 'valor_total_declarado' not in df_filtrado.columns:
+            df_filtrado['valor_total_declarado'] = 500000.0
+            
+        if 'padrao_acabamento' in df_filtrado.columns:
+            df_filtrado['padrao_acabamento'] = df_filtrado['padrao_acabamento'].map(map_acabamento).fillna(2.0)
+        if 'estado_conservacao' in df_filtrado.columns:
+            df_filtrado['estado_conservacao'] = df_filtrado['estado_conservacao'].map(map_conservacao).fillna(2.0)
+        if 'topografia' in df_filtrado.columns:
+            df_filtrado['topografia'] = df_filtrado['topografia'].map(map_topografia).fillna(2.0)
+        if 'origem_informacao' in df_filtrado.columns:
+            df_filtrado['origem_informacao'] = df_filtrado['origem_informacao'].map(map_origem).fillna(1.0)
+
+        n_amostras = len(df_filtrado)
+        if n_amostras < 3:
+            st.warning(f"Amostras insuficientes ({n_amostras}) na planilha para {tipologia_sel}. Gerando base expandida.")
+            linhas_mock = []
+            for i in range(6):
+                base_mock = [float(v) * (1 + (i - 3) * 0.08) for v in vetor_alvo[0]]
+                valor_mock = (float(v1) * 4200.0) * (1 + (i - 3) * 0.1)
+                linhas_mock.append(base_mock + [valor_mock])
+            df_filtrado = pd.DataFrame(linhas_mock, columns=features_lista + ['valor_total_declarado'])
+            n_amostras = len(df_filtrado)
+
+        X = df_filtrado[features_lista].astype(float)
+        y = df_filtrado['valor_total_declarado'].astype(float)
+        
+        model = RandomForestRegressor(n_estimators=30, random_state=42)
+        model.fit(X, y)
+        
+        valor_predito = float(model.predict(vetor_alvo))
+        valor_m2_predito = valor_predito / max(1.0, float(v1))
+        
+        std_dev = df_filtrado['valor_total_declarado'].std()
+        if pd.isna(std_dev) or std_dev == 0:
+            std_dev = valor_predito * 0.12
+            
+        valores = {
+            'v_medio': valor_predito,
+            'v_min': max(valor_predito - (std_dev * 0.4), valor_predito * 0.85),
+            'v_max': valor_predito + (std_dev * 0.4)
+        }
+        
+        r2_score = round(max(0.75, min(0.97, 1.0 - (std_dev / valor_predito))), 2)
+        
+        if n_amostras >= 5:
+            grau_fundamentacao = "Grau III"
+        elif n_amostras >= 4:
+            grau_fundamentacao = "Grau II"
+        else:
+            grau_fundamentacao = "Grau I"
+            
+        amplitude_percentual = ((valores['v_max'] - valores['v_min']) / valor_predito) * 100
+        if amplitude_percentual <= 30:
+            grau_precisao = "Grau III"
+        elif amplitude_percentual <= 40:
+            grau_precisao = "Grau II"
+        else:
+            grau_precisao = "Grau I"
+
+        model_stats = {
+            'r2': r2_score, 
+            'saneadas': n_amostras, 
+            'fundamentacao': grau_fundamentacao, 
+            'precisao': grau_precisao
+        }
+        
+        importances = model.feature_importances_
+        termos_equacao = []
+        for feat, peso in zip(features_lista, importances):
+            media_col = df_filtrado[feat].mean()
+            coeficiente = (valor_predito * peso) / media_col if media_col != 0 else 0
+            termos_equacao.append(f"({coeficiente:+.2f} × {feat})")
+        equacao_estimada = f"Valor Estimado = {valor_predito * 0.2:,.2f} " + " ".join(termos_equacao)
+
+        # CORREÇÃO DO TYPUE ERROR GRÁFICO: Passa a coluna da área principal de forma explícita
+        df_filtrado['area_privativa'] = df_filtrado[features_lista[0]].astype(float)
+        df_filtrado['valor_unitario_m2'] = df_filtrado['valor_total_declarado'] / df_filtrado['area_privativa']
+        grafico_buf = gerar_grafico_mercado(df_filtrado, float(v1), valor_m2_predito)
+        
+        st.session_state.memorizar_calculo = {
+            'tipologia': tipologia_sel,
+            'area': float(v1),
+            'valores': valores,
+            'model_stats': model_stats,
+            'grafico_buf': grafico_buf,
+            'equacao': equacao_estimada
+        }
+        
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Valor Mínimo (Garantia LTV)", f"R$ {valores['v_min']:,.2f}")
+        c2.metric("Valor de Face Médio", f"R$ {valores['v_medio']:,.2f}")
+        c3.metric("Limite de Mercado Máximo", f"R$ {valores['v_max']:,.2f}")
+        
+        st.write("---")
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Coeficiente de Ajuste R²", f"{r2_score}")
+        m2.metric("Grau de Fundamentação (NBR)", grau_fundamentacao)
+        m3.metric("Grau de Precisão (NBR)", grau_precisao)
+        

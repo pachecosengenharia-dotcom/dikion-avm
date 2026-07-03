@@ -177,7 +177,6 @@ if st.session_state.memorizar_calculo is not None:
     st.sidebar.subheader("📥 Emissão do Laudo Técnico")
     res = st.session_state.memorizar_calculo
     pdf_laudo = gerar_pdf(tenant_selecionado, tipologia_sel, res['v1'], res, res, st.session_state.status_jur, st.session_state.score_jur, res['eq'])
-
 st.sidebar.download_button("📥 Baixar Laudo Completo (PDF)", data=pdf_laudo, 
 file_name=f"laudo_nbr_{tipologia_sel.lower()}.pdf", mime="application/pdf", 
 use_container_width=True)

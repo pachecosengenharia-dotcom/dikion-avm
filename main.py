@@ -180,20 +180,20 @@ if st.session_state.memorizar_calculo is not None:
     m3.metric("Ajuste do Modelo (R²)", f"{res['r2']}")
     
     st.info(f"📊 **Equação Equivalente do Mercado:** `{res['eq']}`")
-st.image(res['img'], caption="Avaliação Avançada: Gráfico de Aderência (Esquerda) e Distribuição de Resíduos (Direita)")
+    st.image(res['img'], caption="Avaliação Avançada: Gráfico de Aderência (Esquerda) e Distribuição de Resíduos (Direita)")
 with st.expander("📜 2. Painel de Riscos Jurídicos e Documentais"):
-st.session_state.status_jur = st.toggle("Documentação da Garantia Regularizada", 
-value=st.session_state.status_jur)
-st.session_state.score_jur = st.selectbox("Grau de Risco Legal", ["RISCO BAIXO", 
-"RISCO MODERADO", "RISCO CRÍTICO"])
+    st.session_state.status_jur = st.toggle("Documentação da Garantia Regularizada", 
+    value=st.session_state.status_jur)
+    st.session_state.score_jur = st.selectbox("Grau de Risco Legal", ["RISCO BAIXO", 
+    "RISCO MODERADO", "RISCO CRÍTICO"])
 
 Emissão do laudo técnico oficial em PDFif 
-st.session_state.memorizar_calculo is not None:
-st.sidebar.write("---")
-st.sidebar.subheader("📥 Emissão do Laudo Técnico")
-res = st.session_state.memorizar_calculo
+    st.session_state.memorizar_calculo is not None:
+    st.sidebar.write("---")
+    st.sidebar.subheader("📥 Emissão do Laudo Técnico")
+    res = st.session_state.memorizar_calculo
 pdf_laudo = gerar_laudo_pdf(tenant_selecionado, tipologia_sel, res['v1'], res, res, 
-st.session_state.status_jur, st.session_state.score_jur, res['eq'])
-st.sidebar.download_button("📥 Baixar Laudo Completo (PDF)", data=pdf_laudo, 
-file_name=f"laudo_regulamentar_{tipologia_sel.lower()}.pdf", mime="application/pdf", 
-use_container_width=True)
+    st.session_state.status_jur, st.session_state.score_jur, res['eq'])
+    st.sidebar.download_button("📥 Baixar Laudo Completo (PDF)", data=pdf_laudo, 
+    file_name=f"laudo_regulamentar_{tipologia_sel.lower()}.pdf", mime="application/pdf", 
+    use_container_width=True)

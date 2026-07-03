@@ -75,29 +75,39 @@ if tipologia_sel == "CASA":
     v1 = col1.number_input("Área Privativa (m²)", min_value=10.0, value=120.0, key="c1")
     v2 = col2.number_input("Área do Terreno (m²)", min_value=10.0, value=200.0, key="c2")
     v3 = col3.number_input("Índice Fiscal da Quadra", min_value=0.0, value=1200.0, key="c3")
-    v4 = m_acab[col1.selectbox("Padrão de Acabamento", list(m_acab.keys()), index=1, key="c4")]
+    v4_txt = col1.selectbox("Padrão de Acabamento", list(m_acab.keys()), index=1, key="c4")
     v5 = col2.number_input("Idade Aparente (Anos)", min_value=0.0, value=5.0, key="c5")
+    v4 = m_acab[v4_txt]
+    n_vars = ["Área Privativa", "Área Terreno", "Índice Fiscal", "Acabamento", "Idade Aparente"]
 elif tipologia_sel == "APARTAMENTO":
     v1 = col1.number_input("Área Privativa (m²)", min_value=10.0, value=80.0, key="a1")
     v2 = col2.number_input("Índice Fiscal da Quadra", min_value=0.0, value=1500.0, key="a2")
     v3 = col3.number_input("Vagas de Garagem (Unidades)", min_value=0.0, value=1.0, key="a3")
-    v4 = m_cons[col1.selectbox("Estado de Conservação", list(m_cons.keys()), index=1, key="a4")]
-    v5 = m_acab[col2.selectbox("Padrão de Acabamento", list(m_acab.keys()), index=1, key="a5")]
+    v4_txt = col1.selectbox("Estado de Conservação", list(m_cons.keys()), index=1, key="a4")
+    v5_txt = col2.selectbox("Padrão de Acabamento", list(map_acab_ap := m_acab.keys()), index=1, key="a5")
+    v4 = m_cons[v4_txt]
+    v5 = m_acab[v5_txt]
+    n_vars = ["Área Privativa", "Índice Fiscal", "Vagas Garagem", "Conservação", "Acabamento"]
 elif tipologia_sel == "LOTE":
     v1 = col1.number_input("Área do Terreno (m²)", min_value=10.0, value=360.0, key="l1")
-    v2 = m_topo[col2.selectbox("Topografia do Lote", list(m_topo.keys()), index=1, key="l2")]
+    v2_txt = col2.selectbox("Topografia do Lote", list(m_topo.keys()), index=1, key="l2")
     v3 = col3.number_input("Data do Evento (Ano Coleta)", min_value=2000.0, value=2026.0, key="l3")
     v4 = col1.number_input("Testada / Frente (m)", min_value=0.0, value=12.0, key="l4")
-    v5 = m_orig[col2.selectbox("Origem da Informação", list(m_orig.keys()), index=0, key="l5")]
+    v5_txt = col2.selectbox("Origem da Informação", list(m_orig.keys()), index=0, key="l5")
+    v2 = m_topo[v2_txt]
+    v5 = m_orig[v5_txt]
+    n_vars = ["Área Terreno", "Topografia", "Ano Coleta", "Frente", "Origem Dado"]
 else:
     v1 = col1.number_input("Área Privativa (m²)", min_value=10.0, value=500.0, key="g1")
     v2 = col2.number_input("Área do Terreno (m²)", min_value=10.0, value=1000.0, key="g2")
     v3 = col3.number_input("Índice Fiscal da Quadra", min_value=0.0, value=900.0, key="g3")
-    v4 = m_acab[col1.selectbox("Padrão de Acabamento", list(m_acab.keys()), index=1, key="g4")]
+    v4_txt = col1.selectbox("Padrão de Acabamento", list(m_acab.keys()), index=1, key="g4")
     v5 = col2.number_input("Idade Aparente (Anos)", min_value=0.0, value=10.0, key="g5")
+    v4 = m_acab[v4_txt]
+    n_vars = ["Área Privativa", "Área Terreno", "Índice Fiscal", "Acabamento", "Idade Aparente"]
 
 # ==========================================
-# 3. COMPUTAÇÃO E EQUACIONAMENTO MATEMÁTICO
+# 3. COMPUTAÇÃO E PROCESSAMENTO ESTATÍSTICO
 # ==========================================
 if botao_calcular:
     df_filtrado = carregar_base_padrao()
@@ -115,9 +125,10 @@ if botao_calcular:
     g_fund = "Grau III (Máximo)" if len(df_filtrado) >= 5 else "Grau II"
     g_prec = "Grau III (Máximo)" if amp <= 30.0 else "Grau II"
     
-    # RESOLUÇÃO DO BUG: Coeficientes mapeados individualmente com segurança
+    # SOLUÇÃO DEFINITIVA DO BUG: String construída com segurança iterando sobre as variáveis mapeadas
     imp = model.feature_importances_
-    equacao = f"Valor = {val_medio*0.15:,.2f} + ({float(imp[0])*100:.1f}% × V1) + ({float(imp[1])*100:.1f}% × V2)"
+    termos = [f"({float(p)*100:.1f}% × {n_vars[i]})" for i, p in enumerate(imp)]
+    equacao = f"Valor Estimado = R$ {val_medio*0.10:,.2f} + " + " + ".join(termos)
     
     fig, ax = plt.subplots(figsize=(5, 1.8))
     ax.scatter(df_filtrado['v1'], df_filtrado['valor_total_declarado']/df_filtrado['v1'], color='#2B6CB0', alpha=0.6, label='Mercado')
@@ -135,7 +146,7 @@ if botao_calcular:
     }
 
 # ==========================================
-# 4. RENDERIZAÇÃO E RETENÇÃO EM TELA
+# 4. RENDERIZAÇÃO DE RESULTADOS PERSISTENTES
 # ==========================================
 if st.session_state.memorizar_calculo is not None:
     res = st.session_state.memorizar_calculo
@@ -159,11 +170,12 @@ if st.session_state.memorizar_calculo is not None:
 
 with st.expander("📜 2. Painel de Riscos Jurídicos e Documentais"):
     st.session_state.status_jur = st.toggle("Documentação da Garantia Regularizada", value=st.session_state.status_jur)
-    st.score_jur = st.selectbox("Grau de Risco Legal", ["RISCO BAIXO", "RISCO MODERADO", "RISCO CRÍTICO"])
+    st.session_state.score_jur = st.selectbox("Grau de Risco Legal", ["RISCO BAIXO", "RISCO MODERADO", "RISCO CRÍTICO"])
 
 if st.session_state.memorizar_calculo is not None:
     st.sidebar.write("---")
     st.sidebar.subheader("📥 Emissão do Laudo Técnico")
     res = st.session_state.memorizar_calculo
+
     pdf_laudo = gerar_pdf(tenant_selecionado, tipologia_sel, res['v1'], res, res, st.session_state.status_jur, st.score_jur, res['eq'])
     st.sidebar.download_button("📥 Baixar Laudo Completo (PDF)", data=pdf_laudo, file_name=f"laudo_nbr_{tipologia_sel.lower()}.pdf", mime="application/pdf", use_container_width=True)

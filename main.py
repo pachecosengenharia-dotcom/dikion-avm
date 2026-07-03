@@ -11,21 +11,26 @@ import matplotlib.pyplot as plt
 
 st.set_page_config(page_title="Plataforma AVM SaaS - Engenharia", page_icon="🏢", layout="wide")
 
-# Base de dados sintética robusta de backup (Caso o upload falhe)
+# Base de dados sintética robusta com suporte a 5 variáveis por tipologia
 @st.cache_data
 def carregar_base_multitipologia_padrao():
+    # Estrutura: valor_total, valor_m2, area_privativa, indice_fiscal, area_terreno, vagas_garagem, andares, pe_direito, idade_imovel, vagas_galpao, tipologia
     dados = [
-        (450000.0, 6000.0, 120.0, 1200.0, 200.0, 2, 0, 3.0, "CASA"),
-        (480000.0, 6153.0, 125.0, 1250.0, 220.0, 2, 0, 3.0, "CASA"),
-        (510000.0, 6375.0, 130.0, 1300.0, 250.0, 2, 0, 3.2, "CASA"),
-        (750000.0, 8823.0, 185.0, 3200.0, 360.0, 3, 0, 3.5, "CASA"),
-        (820000.0, 8913.0, 192.0, 3300.0, 400.0, 3, 0, 3.5, "CASA"),
-        (350000.0, 5833.0, 60.0, 1500.0, 0.0, 1, 3, 2.7, "APARTAMENTO"),
-        (380000.0, 6129.0, 62.0, 1600.0, 0.0, 1, 5, 2.7, "APARTAMENTO"),
-        (420000.0, 6461.0, 65.0, 1800.0, 0.0, 2, 8, 2.8, "APARTAMENTO"),
-        (1200000.0, 2400.0, 500.0, 900.0, 800.0, 0, 0, 6.0, "GALPAO")
+        (450000.0, 6000.0, 120.0, 1200.0, 200.0, 0, 1, 3.0, 5, 0, "CASA"),
+        (480000.0, 6153.0, 125.0, 1250.0, 220.0, 0, 1, 3.0, 3, 0, "CASA"),
+        (510000.0, 6375.0, 130.0, 1300.0, 250.0, 0, 2, 3.2, 2, 0, "CASA"),
+        (750000.0, 8823.0, 185.0, 3200.0, 360.0, 0, 2, 3.5, 10, 0, "CASA"),
+        (820000.0, 8913.0, 192.0, 3300.0, 400.0, 0, 2, 3.5, 1, 0, "CASA"),
+        (350000.0, 5833.0, 60.0, 1500.0, 0.0, 1, 3, 2.7, 8, 0, "APARTAMENTO"),
+        (380000.0, 6129.0, 62.0, 1600.0, 0.0, 1, 5, 2.7, 4, 0, "APARTAMENTO"),
+        (420000.0, 6461.0, 65.0, 1800.0, 0.0, 2, 8, 2.8, 1, 0, "APARTAMENTO"),
+        (1200000.0, 2400.0, 500.0, 900.0, 800.0, 0, 0, 6.0, 12, 4, "GALPAO"),
+        (1500000.0, 2500.0, 600.0, 950.0, 1000.0, 0, 0, 7.0, 5, 6, "GALPAO")
     ]
-    return pd.DataFrame(dados, columns=['valor_total_declarado', 'valor_unitario_m2', 'area_privativa', 'indice_fiscal', 'area_terreno', 'vagas_garagem', 'andares', 'pe_direito', 'tipologia'])
+    return pd.DataFrame(dados, columns=[
+        'valor_total_declarado', 'valor_unitario_m2', 'area_privativa', 'indice_fiscal', 
+        'area_terreno', 'vagas_garagem', 'andares', 'pe_direito', 'idade_imovel', 'vagas_galpao', 'tipologia'
+    ])
 
 def gerar_grafico_mercado(df_saneado, area_alvo, valor_estimado_m2):
     fig, ax = plt.subplots(figsize=(6, 3))
@@ -113,10 +118,8 @@ with aba_avm:
             df_bruto = pd.read_csv(arquivo_planilha) if arquivo_planilha.name.endswith('.csv') else pd.read_excel(arquivo_planilha)
             df_global = df_bruto.copy()
             
-            # 1. Normalizar nomes das colunas
             df_global.columns = df_global.columns.str.lower().str.strip()
             
-            # 2. Mapear sinônimos conhecidos
             colunas_mapeamento = {
                 'area_construida': 'area_privativa', 'area_util': 'area_privativa', 'metragem': 'area_privativa',
                 'preco_m2': 'valor_unitario_m2', 'valor_m2': 'valor_unitario_m2',
@@ -124,13 +127,11 @@ with aba_avm:
             }
             df_global.rename(columns=colunas_mapeamento, inplace=True)
             
-            # 3. GARANTIA ANTI-CRASH: Forçar existência de todas as colunas necessárias
+            # Garantia contra colunas ausentes
             colunas_obrigatorias = {
-                'valor_total_declarado': 0.0, 'valor_unitario_m2': 0.0, 
-                'area_privativa': 0.0, 'indice_fiscal': 0.0, 
-                'area_terreno': 0.0, 'vagas_garagem': 0, 
-                'andares': 0, 'pe_direito': 3.0, 
-                'tipologia': 'CASA'
+                'valor_total_declarado': 0.0, 'valor_unitario_m2': 0.0, 'area_privativa': 0.0, 
+                'indice_fiscal': 0.0, 'area_terreno': 0.0, 'vagas_garagem': 0, 
+                'andares': 0, 'pe_direito': 3.0, 'idade_imovel': 0, 'vagas_galpao': 0, 'tipologia': 'CASA'
             }
             
             for col, val_padrao in colunas_obrigatorias.items():
@@ -150,83 +151,22 @@ with aba_avm:
     st.write("---")
     
     col1, col2 = st.columns(2)
+    
+    # Variáveis Universais (Presentes nas 3 Tipologias)
     area_alvo = col1.number_input("Dimensao/Area Principal (m²)", min_value=10.0, value=120.0)
     indice_alvo = col2.number_input("Indice Fiscal da Quadra", min_value=0.0, value=1200.0)
     
-    area_terreno_valor, vagas_valor, andar_valor, pe_direito_valor = 0.0, 0, 0, 3.0
+    # Inicialização dos coletores das variáveis específicas
+    v1, v2, v3 = 0.0, 0, 0
     
+    # 2 Variáveis universais + 3 específicas = Matriz Padrão de 5 Variáveis
     if tipologia_sel == "CASA":
-        area_terreno_valor = col1.number_input("Area do Terreno (m²)", min_value=0.0, value=200.0)
+        v1 = col1.number_input("Area do Terreno (m²)", min_value=0.0, value=200.0)
+        v2 = col2.number_input("Total de Pavimentos/Andares", min_value=1, value=1)
+        v3 = col1.number_input("Idade do Imovel (Anos)", min_value=0, value=5)
     elif tipologia_sel == "APARTAMENTO":
-        andar_valor = col1.number_input("Andar do Imovel", min_value=0, value=3)
-        vagas_valor = col2.number_input("Vagas de Garagem", min_value=0, value=1)
+        v1 = col1.number_input("Andar do Imovel", min_value=0, value=3)
+        v2 = col2.number_input("Vagas de Garagem", min_value=0, value=1)
+        v3 = col1.number_input("Idade do Edificio (Anos)", min_value=0, value=4)
     elif tipologia_sel == "GALPAO":
-        pe_direito_valor = col1.number_input("Pe Direito (m)", min_value=2.0, value=6.0)
-        area_terreno_valor = col2.number_input("Area do Terreno (m²)", min_value=0.0, value=500.0)
-
-    st.write("---")
-    
-    if st.button("🚀 Executar Engenharia de Avaliacao (AVM)"):
-        # Se a coluna tipologia foi criada artificialmente, força ela a bater com a seleção atual da tela
-        if 'tipologia' in df_global.columns and df_global['tipologia'].eq('CASA').all() and tipologia_sel != 'CASA':
-            df_filtrado = df_global.copy()
-            df_filtrado['tipologia'] = tipologia_sel
-        else:
-            df_filtrado = df_global[df_global['tipologia'] == tipologia_sel]
-        
-        if len(df_filtrado) < 3:
-            st.warning("Dados insuficientes para a tipologia selecionada na planilha. Usando dados padrão.")
-            df_filtrado = carregar_base_multitipologia_padrao()
-            df_filtrado = df_filtrado[df_filtrado['tipologia'] == tipologia_sel]
-            
-        # SELEÇÃO DINÂMICA RIGOROSA DE VARIÁVEIS CONFORME A TIPOLOGIA
-        if tipologia_sel == "CASA":
-            # Removido 'vagas_garagem' completamente desta tipologia
-            features = ['area_privativa', 'indice_fiscal', 'area_terreno']
-            vetor_alvo = np.array([[area_alvo, indice_alvo, area_terreno_valor]])
-        elif tipologia_sel == "APARTAMENTO":
-            # Única tipologia que processa as vagas de garagem do imóvel
-            features = ['area_privativa', 'indice_fiscal', 'andares', 'vagas_garagem']
-            vetor_alvo = np.array([[area_alvo, indice_alvo, andar_valor, vagas_valor]])
-        else: # GALPAO
-            features = ['area_privativa', 'indice_fiscal', 'pe_direito', 'area_terreno']
-            vetor_alvo = np.array([[area_alvo, indice_alvo, pe_direito_valor, area_terreno_valor]])
-            
-        X = df_filtrado[features]
-        y = df_filtrado['valor_total_declarado']
-        
-        n_estimators = min(50, max(10, len(df_filtrado) * 5))
-        model = RandomForestRegressor(n_estimators=n_estimators, random_state=42)
-        model.fit(X, y)
-        
-        # Predição com o formato exato da tipologia
-        valor_predito = float(model.predict(vetor_alvo))
-        valor_m2_predito = valor_predito / area_alvo
-        
-        std_dev = df_filtrado['valor_total_declarado'].std()
-        if pd.isna(std_dev) or std_dev == 0:
-            std_dev = valor_predito * 0.15
-            
-        valores = {
-            'v_medio': valor_predito,
-            'v_min': max(valor_predito - (std_dev * 0.5), valor_predito * 0.8),
-            'v_max': valor_predito + (std_dev * 0.5)
-        }
-        
-        r2_score = round(max(0.72, min(0.96, 1.0 - (std_dev / valor_predito))), 2)
-        model_stats = {'r2': r2_score, 'saneadas': len(df_filtrado)}
-        
-        grafico_buf = gerar_grafico_mercado(df_filtrado, area_alvo, valor_m2_predito)
-        
-        st.session_state.memorizar_calculo = {
-            'tipologia': tipologia_sel,
-            'area': area_alvo,
-            'valores': valores,
-            'model_stats': model_stats,
-            'grafico_buf': grafico_buf
-        }
-        
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Valor Mínimo (Garantia)", f"R$ {valores['v_min']:,.2f}")
-        c2.metric("Valor de Face Médio", f"R$ {valores['v_medio']:,.2f}")
-        c3.metric("Limite de Mercado Máximo", f"R$ {valores['v_max']:,.2f}")
+        v1 = col1.number_input("Pe Direito (m)", min_value=2.0, value=6.0)

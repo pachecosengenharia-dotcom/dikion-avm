@@ -142,7 +142,7 @@ def construir_pdf_laudo(tenant_nome, dados_req, res_mat, aprovado_jur, score_jur
         ["Limite Mínimo Admissível (Garantia Máxima LTV)", f"R$ {res_mat['v_min']:,.2f}"],
         ["Valor Médio Estimado de Mercado", f"R$ {res_mat['valor_estimado']:,.2f}"],
         ["Limite Máximo Admissível", f"R$ {res_mat['v_max']:,.2f}"]
-    ], colWidths=)
+    ], colWidths=[100, 100, 100, 100])
     t2.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor("#2B6CB0")), ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E0")), ('PADDING', (0,0), (-1,-1), 5)]))
     story.append(t2)
     

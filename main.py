@@ -131,10 +131,8 @@ def construir_pdf_laudo(tenant_nome, dados_req, res_mat, aprovado_jur, score_jur
     story.append(Spacer(1, 10))
     
     story.append(Paragraph("1. Dados do Imóvel Solicitado", subtitle_style))
-    t1 = Table(
-    [["Área Privativa", f"{dados_req.area_privativa} m²", "Quantidade de Quartos", f"{dados_req.qtd_quartos}"]], 
-    colWidths=[100, 100, 100, 100]
-)
+    t1 = Table([["Área Privativa", f"{dados_req.area_privativa} m²", "Quantidade de Quartos", f"{dados_req.qtd_quartos}"]], 
+    colWidths=[100, 100, 100, 100])
     t1.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#F7FAFC")), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#E2E8F0")), ('PADDING', (0,0), (-1,-1), 5)]))
     story.append(t1)
     

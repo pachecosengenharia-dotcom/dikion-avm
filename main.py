@@ -1,192 +1,184 @@
-import streamlit as st
+import io
+import math
+import logging
+from typing import List, Optional
+from datetime import datetime
 import pandas as pd
-import numpy as np
-from sklearn.ensemble import RandomForestRegressor
+import statsmodels.api as sm
+from statsmodels.sandbox.regression.predstd import wls_prediction_std
+from fastapi import FastAPI, HTTPException, Depends, Security, status
+from fastapi.security.api_key import APIKeyHeader
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
-import io
-import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="Plataforma AVM SaaS", page_icon="🏢", layout="wide")
+# Configuração de Logs para monitoramento na Nuvem (CloudWatch/Azure Monitor)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("AVM_PRODUCAO")
 
-# Inicialização segura de variáveis de estado
-if 'memorizar_calculo' not in st.session_state: st.session_state.memorizar_calculo = None
-if 'status_jur' not in st.session_state: st.session_state.status_jur = True
-if 'score_jur' not in st.session_state: st.session_state.score_jur = "RISCO BAIXO"
+app = FastAPI(
+    title="Plataforma Core AVM & Compliance Imobiliário SaaS",
+    description="API de produção em conformidade com as Resoluções CMN 4.676/2018 e 4.925/2021 do Banco Central.",
+    version="2.0.0"
+)
 
-def carregar_base_padrao():
-    lines = [[100.0 + (i*15), 200.0 + (i*20), 1200.0 + (i*50), 2.0, 5.0, (100.0 + (i*15)) * 4300.0] for i in range(12)]
-    return pd.DataFrame(lines, columns=['v1', 'v2', 'v3', 'v4', 'v5', 'valor_total_declarado'])
+# =====================================================================
+# 1. CAMADA DE SEGURANÇA E MULTI-TENANCY (Exigência Bacen)
+# =====================================================================
+API_KEY_HEADER = APIKeyHeader(name="X-API-KEY", auto_error=True)
 
-def gerar_laudo_pdf(tenant, tipo, area, valores, stats, status_jur, score_jur, equacao):
-    buf = io.BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
-    story, styles = [], getSampleStyleSheet()
-    t_style = ParagraphStyle('T1', parent=styles['Heading1'], fontSize=14, textColor=colors.HexColor("#1A365D"), spaceAfter=10)
-    p_style = ParagraphStyle('P1', parent=styles['Normal'], fontSize=8.5, leading=12, spaceAfter=5)
-    
-    story.append(Paragraph("LAUDO TÉCNICO DE AVALIAÇÃO REGULAMENTAR - IA (AVM)", t_style))
-    story.append(Paragraph(f"<b>Solicitante:</b> {tenant} | <b>Normativas:</b> ABNT NBR 14653 & Resoluções BACEN", p_style))
-    story.append(Spacer(1, 10))
-    
-    data = [
-        ["Mínimo (LTV)", f"R$ {valores['v_min']:,.2f}", "Fundamentação NBR", stats['fund']],
-        ["Médio Face", f"R$ {valores['v_medio']:,.2f}", "Precisão NBR", stats['prec']],
-        ["Máximo Mercado", f"R$ {valores['v_max']:,.2f}", "Ajuste R²", f"{stats['r2']}"]
-    ]
-    t = Table(data, colWidths=(120, 120, 120, 120))
-    t.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.grey), ('PADDING', (0,0), (-1,-1), 6)]))
-    story.append(t)
-    story.append(Spacer(1, 10))
-    story.append(Paragraph(f"<b>Equação equivalente do mercado:</b> {equacao}", p_style))
-    
-    doc.build(story)
-    buf.seek(0)
-    return buf.getvalue()
+# Banco de dados de Tenants simulado na memória do servidor para validação de chaves
+TENANTS_AUTENTICADOS = {
+    "token_secreto_banco_alfa_2026": {"id": 101, "nome": "Banco Alfa S.A.", "plano": "ENTERPRISE"},
+    "token_secreto_imobiliaria_beta": {"id": 102, "nome": "Imobiliária Beta Ltda", "plano": "STANDARD"}
+}
 
-def executar_modelo_avm(v1, v2, v3, v4, v5, df_dados):
-    # PROTEÇÃO KEYERROR: Garante as colunas necessárias de treino no DataFrame final
-    for c in ['v1', 'v2', 'v3', 'v4', 'v5']:
-        if c not in df_dados.columns:
-            df_dados[c] = 0.0
-    if 'valor_total_declarado' not in df_dados.columns:
-        df_dados['valor_total_declarado'] = float(v1) * 4300.0
+def validar_inquilino_saas(api_key: str = Security(API_KEY_HEADER)):
+    """Injeta a proteção Multi-Tenant e valida as permissões do plano (Bacen 4.893)."""
+    if api_key not in TENANTS_AUTENTICADOS:
+        logger.warning(f"Tentativa de acesso não autorizada com a chave: {api_key[:5]}...")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Token inválido ou revogado.")
+    return TENANTS_AUTENTICADOS[api_key]
 
-    X = df_dados[['v1', 'v2', 'v3', 'v4', 'v5']].values.astype(np.float64)
-    y = df_dados['valor_total_declarado'].values.astype(np.float64)
+# =====================================================================
+# 2. ESQUEMAS DE DADOS (Pydantic para Validação de Payload)
+# =====================================================================
+class RegistroAmostra(BaseModel):
+    valor_total_declarado: float
+    valor_unitario_m2: float
+    area_privativa: float
+    distancia_polo_m2: float
+
+class RequisicaoAvaliacao(BaseModel):
+    area_privativa: float = Field(..., example=75.0)
+    qtd_quartos: int = Field(..., example=2)
+    padrao_construtivo_id: int = Field(..., example=2)
+    texto_matricula_ocr: Optional[str] = Field(None, example="Consta R-3: PENHORA JUDICIAL ativa...")
+    base_amostras: List[RegistroAmostra] = Field(..., description="Lista de imóveis semelhantes fornecida pelo banco ou coletada na região.")
+
+# =====================================================================
+# 3. MÓDULO MATEMÁTICO: FILTRO IQR + REGRESSÃO LINEAR (AVM)
+# =====================================================================
+def executar_saneamento_mercado_iqr(df: pd.DataFrame) -> pd.DataFrame:
+    """Aplica o critério rigoroso do Intervalo Interquartil para expurgar ruídos de preços."""
+    q1 = df['valor_unitario_m2'].quantile(0.25)
+    q3 = df['valor_unitario_m2'].quantile(0.75)
+    iqr = q3 - q1
+    limite_inferior = q1 - (1.5 * iqr)
+    limite_superior = q3 + (1.5 * iqr)
+    return df[(df['valor_unitario_m2'] >= limite_inferior) & (df['valor_unitario_m2'] <= limite_superior)]
+
+def processar_calculo_estatistico(df_saneado: pd.DataFrame, area_alvo: float):
+    """Roda a regressão linear múltipla via MQO e extrai os intervalos de confiança (95%)."""
+    Y = df_saneado['valor_unitario_m2']
+    X = df_saneado[['area_privativa', 'distancia_polo_m2']]
+    X = sm.add_constant(X)
     
-    model = RandomForestRegressor(n_estimators=30, random_state=42).fit(X, y)
-    vetor_alvo = np.array([[float(v1), float(v2), float(v3), float(v4), float(v5)]], dtype=np.float64)
+    modelo = sm.OLS(Y, X).fit()
     
-    val_medio = float(model.predict(vetor_alvo))
-    std_dev = float(df_dados['valor_total_declarado'].std()) or (val_medio * 0.08)
-    val_min, val_max = max(val_medio - (std_dev * 0.35), val_medio * 0.85), val_medio + (std_dev * 0.35)
+    # Imóvel alvo posicionado a 400 metros do polo de valorização local para a predição
+    vetor_alvo = [1, area_alvo, 400]
     
-    amp = ((val_max - val_min) / val_medio) * 100
-    g_fund = "Grau III" if len(df_dados) >= 5 else "Grau II"
-    g_prec = "Grau III" if amp <= 30.0 else "Grau II"
+    _, iv_l, iv_u = wls_prediction_std(modelo, exog=[vetor_alvo], alpha=0.05)
     
-    imp = model.feature_importances_
-    termos = " + ".join([f"({float(p)*100:.1f}% × V{i+1})" for i, p in enumerate(imp)])
-    equacao_string = f"Valor = {val_medio*0.15:,.2f} + " + termos
-    
-    y_pred_total = model.predict(X)
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 2.5))
-    ax1.scatter(y, y_pred_total, color='#2B6CB0', alpha=0.7, edgecolors='k')
-    ax1.plot([y.min(), y.max()], [y.min(), y.max()], 'r--', lw=1.5)
-    ax1.set_title('Aderência (Real vs Predito)', fontsize=8, fontweight='bold')
-    ax2.scatter(y_pred_total, y - y_pred_total, color='#319795', alpha=0.7, edgecolors='k')
-    ax2.axhline(y=0, color='r', linestyle='--', lw=1.5)
-    ax2.set_title('Distribuição de Resíduos', fontsize=8, fontweight='bold')
-    plt.tight_layout()
-    
-    buf_graficos = io.BytesIO()
-    plt.savefig(buf_graficos, format='png', dpi=150)
-    buf_graficos.seek(0)
-    plt.close(fig)
+    preco_m2_predito = float(modelo.predict([vetor_alvo]))
     
     return {
-        'v_min': val_min, 'v_medio': val_medio, 'v_max': val_max,
-        'fund': g_fund, 'prec': g_prec, 'r2': 0.94, 'eq': equacao_string, 'img': buf_graficos, 'v1': float(v1)
+        "valor_estimado": round(preco_m2_predito * area_alvo, 2),
+        "v_min": round(float(iv_l) * area_alvo, 2),
+        "v_max": round(float(iv_u) * area_alvo, 2),
+        "r2": round(modelo.rsquared, 4)
     }
 
-# Interface Gráfica Principal
-st.sidebar.header("🔑 Identificação do Contratante")
-tenant_selecionado = st.sidebar.selectbox("Cliente Institucional", ["001 - Banco Alfa S.A.", "002 - Imobiliária Local Ltda"])
-st.sidebar.markdown("**Plano Ativo:** 🟢 ENTERPRISE\n\n**Conformidade Reguladora:**\n* ✔️ BACEN CMN 4.910\n* ✔️ ABNT NBR 14653-2")
-
-tipologia_sel = st.selectbox("🎯 Selecione a Tipologia do Imóvel Alvo:", ["CASA", "APARTAMENTO", "LOTE", "GALPAO"])
-botao_calcular = st.button("🚀 CALCULAR AVALIAÇÃO IMOBILIÁRIA (AVM)", use_container_width=True)
-st.write("---")
-
-col_up1, col_up2 = st.columns(2)
-arquivo_planilha = col_up1.file_uploader("Upload da Planilha Comparativa (.xlsx ou .csv)", type=["xlsx", "csv"])
-arquivo_certidao = col_up2.file_uploader("Upload da Certidão de Ônus / Matrícula (PDF ou Imagem)", type=["pdf", "png", "jpg"])
-
-if arquivo_planilha is not None: st.sidebar.success("🟩 Planilha Vinculada com Sucesso!")
-if arquivo_certidao is not None: st.sidebar.success("🟩 Certidão de Ônus Anexada!")
-
-st.markdown("##### 📌 Variáveis Preditoras de Entrada")
-col1, col2, col3 = st.columns(3)
-m_acab, m_cons, m_topo, m_orig = {"Baixo": 1.0, "Normal": 2.0, "Alto": 3.0}, {"Regular": 1.0, "Bom": 2.0, "Ótimo": 3.0}, {"Aclive": 1.0, "Plano": 2.0, "Declive": 3.0}, {"Imobiliária": 1.0, "Proprietário": 2.0, "Banco": 3.0}
-
-if tipologia_sel == "CASA":
-    val_v1 = col1.number_input("Área Privativa (m²)", min_value=10.0, value=120.0, key="c1")
-    val_v2 = col2.number_input("Área do Terreno (m²)", min_value=10.0, value=200.0, key="c2")
-    val_v3 = col3.number_input("Índice Fiscal da Quadra", min_value=0.0, value=1200.0, key="c3")
-    val_v4 = m_acab[col1.selectbox("Padrão de Acabamento", list(m_acab.keys()), index=1, key="c4")]
-    val_v5 = col2.number_input("Idade Aparente (Anos)", min_value=0.0, value=5.0, key="c5")
-elif tipologia_sel == "APARTAMENTO":
-    val_v1 = col1.number_input("Área Privativa (m²)", min_value=10.0, value=80.0, key="a1")
-    val_v2 = col2.number_input("Índice Fiscal da Quadra", min_value=0.0, value=1500.0, key="a2")
-    val_v3 = col3.number_input("Vagas de Garagem", min_value=0.0, value=1.0, key="a3")
-    val_v4 = m_cons[col1.selectbox("Estado de Conservação", list(m_cons.keys()), index=1, key="a4")]
-    val_v5 = m_acab[col2.selectbox("Padrão de Acabamento", list(m_acab.keys()), index=1, key="a5")]
-elif tipologia_sel == "LOTE":
-    val_v1 = col1.number_input("Área do Terreno (m²)", min_value=10.0, value=360.0, key="l1")
-    val_v2 = m_topo[col2.selectbox("Topografia do Lote", list(m_topo.keys()), index=1, key="l2")]
-    val_v3 = col3.number_input("Data do Evento (Ano Coleta)", min_value=2000.0, value=2026.0, key="l3")
-    val_v4 = col1.number_input("Testada / Frente (m)", min_value=0.0, value=12.0, key="l4")
-    val_v5 = m_orig[col2.selectbox("Origem da Informação", list(m_orig.keys()), index=0, key="l5")]
-else:
-    val_v1 = col1.number_input("Área Privativa (m²)", min_value=10.0, value=500.0, key="g1")
-    val_v2 = col2.number_input("Área do Terreno (m²)", min_value=10.0, value=1000.0, key="g2")
-    val_v3 = col3.number_input("Índice Fiscal da Quadra", min_value=0.0, value=900.0, key="g3")
-    val_v4 = m_acab[col1.selectbox("Padrão de Acabamento", list(m_acab.keys()), index=1, key="g4")]
-    val_v5 = col2.number_input("Idade Aparente (Anos)", min_value=0.0, value=10.0, key="g5")
-
-if botao_calcular:
-    df_global = carregar_base_padrao()
-    if arquivo_planilha is not None:
-        try:
-            df_lido = pd.read_csv(arquivo_planilha) if arquivo_planilha.name.endswith('.csv') else pd.read_excel(arquivo_planilha)
-            df_lido.columns = df_lido.columns.str.lower().str.strip()
-            
-            # TRATAMENTO POSICIONAL: Mapeia dinamicamente as 5 primeiras colunas numéricas encontradas na planilha do usuário
-            colunas_numericas = df_lido.select_dtypes(include=[np.number]).columns.tolist()
-            for idx, c_name in enumerate(colunas_numericas[:5]):
-                df_lido.rename(columns={c_name: f'v{idx+1}'}, inplace=True)
-                
-            # Tenta mapear coluna de preço se houver correspondência de nomes comuns
-            for preco_sinonimo in ['preco', 'valor', 'total', 'declarado']:
-                col_encontrada = [c for c in df_lido.columns if preco_sinonimo in c]
-                if col_encontrada:
-                    df_lido.rename(columns={col_encontrada[0]: 'valor_total_declarado'}, inplace=True)
-                    break
-                    
-            df_global = df_lido
-        except:
-            pass
-    st.session_state.memorizar_calculo = executar_modelo_avm(val_v1, val_v2, val_v3, val_v4, val_v5, df_global)
-
-if st.session_state.memorizar_calculo is not None:
-    res = st.session_state.memorizar_calculo
-    st.write("---")
-    st.success("🎯 Avaliação Estatística Concluída com Sucesso!")
+# =====================================================================
+# 4. MÓDULO JURÍDICO: POLÍTICA DE RISCO DE GARANTIAS (Bacen 4.925)
+# =====================================================================
+def executar_auditoria_juridica(texto_ocr: Optional[str]):
+    """Varre o documento e aplica os Hard Blocks corporativos de risco de crédito."""
+    if not texto_ocr:
+        return True, "RISCO_NAO_AVALIADO"
+        
+    texto_min = texto_ocr.lower()
+    has_penhora = "penhora" in texto_min and "cancelamento" not in texto_min
+    has_indisponibilidade = "indisponibilidade" in texto_min
+    has_alienacao = "alienação fiduciária" in texto_min and "quitação" not in texto_min
     
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Mínimo Admissível (Garantia LTV)", f"R$ {res['v_min']:,.2f}")
-    c2.metric("Valor de Face Estimado", f"R$ {res['v_medio']:,.2f}")
-    c3.metric("Limite Superior de Mercado", f"R$ {res['v_max']:,.2f}")
+    if has_penhora or has_indisponibilidade:
+        return False, "ALTO_RISCO_BLOQUEADO"
+    elif has_alienacao:
+        return True, "MEDIO_RISCO_REQUER_INTERVENIENTE"
     
-    st.write("---")
-    st.markdown("##### 📜 Enquadramento Regulatório e Estatístico")
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Grau de Fundamentação", res['fund'])
-    m2.metric("Grau de Precisão", res['prec'])
-    m3.metric("Ajuste do Modelo (R²)", f"{res['r2']}")
+    return True, "BAIXO_RISCO_APROVADO"
+
+# =====================================================================
+# 5. GERADOR DO RELATÓRIO PDF (Armazenamento na Memória RAM / Buffer)
+# =====================================================================
+def construir_pdf_laudo(tenant_nome, dados_req, res_mat, aprovado_jur, score_jur, n_amostras) -> bytes:
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
+    story = []
     
-    st.info(f"📊 **Equação Equivalente do Mercado:** `{res['eq']}`")
-    st.image(res['img'], caption="Avaliação Avançada: Gráfico de Aderência (Esquerda) e Distribuição de Resíduos (Direita)")
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('T1', parent=styles['Heading1'], fontSize=18, textColor=colors.HexColor("#1A365D"), spaceAfter=15)
+    subtitle_style = ParagraphStyle('T2', parent=styles['Heading2'], fontSize=12, textColor=colors.HexColor("#2B6CB0"), spaceAfter=8)
+    text_style = ParagraphStyle('T3', parent=styles['Normal'], fontSize=9, leading=13, spaceAfter=6)
+    
+    story.append(Paragraph("LAUDO TÉCNICO E LEGAL DE GARANTIA IMOBILIÁRIA (AVM)", title_style))
+    story.append(Paragraph(f"<b>Emissor Técnico:</b> {tenant_nome} | <b>Data de Emissão:</b> {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}", text_style))
+    story.append(Spacer(1, 10))
+    
+    story.append(Paragraph("1. Dados do Imóvel Solicitado", subtitle_style))
+    t1 = Table([["Área Privativa", f"{dados_req.area_privativa} m²", "Quantidade de Quartos", f"{dados_req.qtd_quartos}"]], colWidths=)
+    t1.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#F7FAFC")), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#E2E8F0")), ('PADDING', (0,0), (-1,-1), 5)]))
+    story.append(t1)
+    
+    story.append(Paragraph("2. Avaliação Estatística e Intervalos de Confiança (95%)", subtitle_style))
+    t2 = Table([
+        ["Métrica", "Valor Total Admissível"],
+        ["Limite Mínimo Admissível (Garantia Máxima LTV)", f"R$ {res_mat['v_min']:,.2f}"],
+        ["Valor Médio Estimado de Mercado", f"R$ {res_mat['valor_estimado']:,.2f}"],
+        ["Limite Máximo Admissível", f"R$ {res_mat['v_max']:,.2f}"]
+    ], colWidths=)
+    t2.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor("#2B6CB0")), ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E0")), ('PADDING', (0,0), (-1,-1), 5)]))
+    story.append(t2)
+    
+    story.append(Paragraph("3. Status da Esteira de Risco Jurídico", subtitle_style))
+    t3 = Table([
+        ["Validação Cadastral", "APROVADO" if aprovado_jur else "REPROVADO / BLOQUEADO"],
+        ["Classificação de Risco Legal", score_jur]
+    ], colWidths=)
+    t3.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E0")), ('PADDING', (0,0), (-1,-1), 5), ('TEXTCOLOR', (1,0), (1,0), colors.HexColor("#38A169") if aprovado_jur else colors.HexColor("#E53E3E"))]))
+    story.append(t3)
+    
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
 
-with st.expander("📜 2. Painel de Riscos Jurídicos e Documentais"):
-    st.session_state.status_jur = st.toggle("Documentação da Garantia Regularizada", value=st.session_state.status_jur)
-    st.session_state.score_jur = st.selectbox("Grau de Risco Legal", ["RISCO BAIXO", "RISCO MODERADO", "RISCO CRÍTICO"])
-
-if st.session_state.memorizar_calculo is not None:
-    st.sidebar.write("---")
-    st.sidebar.subheader("📥 Emissão do Laudo Técnico")
-    res = st.session_state.memorizar_calculo
-    pdf_laudo = gerar_laudo_pdf(tenant_selecionado, tipologia_sel, res['v1'], res, res, st.session_state.status_jur, st.session_state.score_jur, res['eq'])
+# =====================================================================
+# 6. ENDPOINT FINAL DE PRODUÇÃO (A MÁGICA INDUSTRIAL)
+# =====================================================================
+@app.post("/api/v2/credito/avaliar-garntia")
+def pipeline_principal_producao(requisicao: RequisicaoAvaliacao, tenant: dict = Depends(validar_inquilino_saas)):
+    """Pipeline unificado: Valida inquilino, limpa amostras, calcula preço, analisa matrícula e cospe as respostas."""
+    logger.info(f"Requisição iniciada pelo Tenant ID: {tenant['id']} ({tenant['nome']})")
+    
+    # TRAVA COMERCIAL SAAS: Bloqueia a execução jurídica se o plano for básico
+    if "STANDARD" in tenant["plano"] and requisicao.texto_matricula_ocr is not None:
+        raise HTTPException(status_code=status.HTTP_402_PAYMENT_REQUIRED, detail="O módulo de análise documental jurídica via OCR/IA não está ativo no seu plano Standard.")
+    
+    if len(requisicao.base_amostras) < 5:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Amostras de mercado insuficientes para garantir a fundamentação estatística (mínimo de 5).")
+        
+    # Converter a lista enviada pelo banco em um DataFrame Pandas
+    dados_brutos = [{ "valor_total_declarado": am.valor_total_declarado, "valor_unitario_m2": am.valor_unitario_m2, "area_privativa": am.area_privativa, "distancia_polo_m2": am.distancia_polo_m2 } for am in requisicao.base_amostras]
+    df_bruto = pd.DataFrame(dados_brutos)
+    
+    # Fluxo Executivo do Motor
+    df_saneado = executar_saneamento_mercado_iqr(df_bruto)
+    resultado_matematico = processar_calculo_estatistico(df_saneado, requisicao.area_privativa)
+    aprovado_jur, score_jur = executar_auditoria_juridica(requisicao.texto_matricula_ocr)
+    
+    # Log de Auditoria na Nuvem

@@ -150,7 +150,7 @@ def construir_pdf_laudo(tenant_nome, dados_req, res_mat, aprovado_jur, score_jur
     t3 = Table([
         ["Validação Cadastral", "APROVADO" if aprovado_jur else "REPROVADO / BLOQUEADO"],
         ["Classificação de Risco Legal", score_jur]
-    ], colWidths=)
+    ], colWidths=[100, 100, 100, 100])
     t3.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E0")), ('PADDING', (0,0), (-1,-1), 5), ('TEXTCOLOR', (1,0), (1,0), colors.HexColor("#38A169") if aprovado_jur else colors.HexColor("#E53E3E"))]))
     story.append(t3)
     

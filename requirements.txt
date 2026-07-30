@@ -4,3 +4,6 @@ reportlab
 openpyxl
 scikit-learn
 matplotlib
+streamlit
+fastapi
+uvicorn
